@@ -1,9 +1,10 @@
 # ==========================================================
-# MATERIAL VIEWFINDER — STRICT PARTIAL SEARCH + SAP LIST
-# + RECENT SEARCHES + GLOBAL SEARCH
+# MATERIAL VIEWFINDER — HYBRID MULTI-KEYWORD SEARCH
+# + SAP LIST + RECENT SEARCHES + GLOBAL SEARCH
 # ==========================================================
 
 import os
+import re
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -27,7 +28,9 @@ DARK_GREEN = "#064E3B"
 LIGHT_GREEN = "#D1FAE5"
 BORDER_GREEN = "#48BB78"
 
-# ---------------- DATA EXTRACTION ----------------
+# ==========================================================
+# DATA EXTRACTION
+# ==========================================================
 def extract_tables(df: pd.DataFrame):
     """Find each header row (where Material & Material Proposed Description sit)
     and slice the table below it."""
@@ -110,7 +113,9 @@ def load_all():
     return df_all.reset_index(drop=True)
 
 
-# ---------------- HELPERS ----------------
+# ==========================================================
+# HELPERS
+# ==========================================================
 def clean_display(df: pd.DataFrame) -> pd.DataFrame:
     """Remove 'nan' text and show empty cells instead."""
     return df.replace(
@@ -118,32 +123,77 @@ def clean_display(df: pd.DataFrame) -> pd.DataFrame:
     ).fillna("")
 
 
-def strict_partial_filter(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
-    """Search in Material, Material Proposed Description + optional long/short descriptions."""
+def parse_keywords(q: str):
+    """Split user query into keywords using spaces, comma, semicolon, pipe etc."""
     q = q.lower().strip()
+    if not q:
+        return []
+    parts = re.split(r"[,\s;|]+", q)
+    # keep order but remove empties and duplicates
+    seen = set()
+    keywords = []
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        if p not in seen:
+            seen.add(p)
+            keywords.append(p)
+    return keywords
+
+
+def hybrid_multi_search(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
+    """
+    Hybrid multi-keyword search:
+    1) AND search (all keywords must appear)
+    2) If no AND results -> OR search (any keyword)
+    Ranking: based on first keyword in Material Proposed Description.
+    """
+    keywords = parse_keywords(q)
+    if not keywords:
+        return df_sub.iloc[0:0].copy()
+
     df = df_sub.copy()
 
+    # columns to search in
     search_cols = [KEY_MAT, KEY_DESC]
     for extra in ["Material description", "Material Long Description"]:
         if extra in df.columns:
             search_cols.append(extra)
 
-    mask = False
-    for col in search_cols:
-        coltext = df[col].fillna("").astype(str).str.lower()
-        mask = mask | coltext.str.contains(q)
+    # combine text for each row
+    combined = (
+        df[search_cols]
+        .fillna("")
+        .astype(str)
+        .agg(" ".join, axis=1)
+        .str.lower()
+    )
 
-    filtered = df[mask].copy()
-    if filtered.empty:
-        return filtered.reset_index(drop=True)
+    # AND mask: all keywords must appear
+    masks_and = [combined.str.contains(k) for k in keywords]
+    mask_and = np.logical_and.reduce(masks_and) if masks_and else np.zeros(len(df), dtype=bool)
 
-    if KEY_DESC in filtered.columns:
-        desc = filtered[KEY_DESC].fillna("").astype(str).str.lower()
-        starts = desc.str.startswith(q)
-        contains = desc.str.contains(q)
+    # OR mask: any keyword appears
+    masks_or = [combined.str.contains(k) for k in keywords]
+    mask_or = np.logical_or.reduce(masks_or) if masks_or else np.zeros(len(df), dtype=bool)
 
-        filtered = (
-            filtered.assign(
+    if mask_and.any():
+        candidates = df[mask_and].copy()
+    else:
+        candidates = df[mask_or].copy()
+
+    if candidates.empty:
+        return candidates
+
+    # Ranking based on FIRST keyword using description column
+    first_kw = keywords[0]
+    if KEY_DESC in candidates.columns:
+        desc = candidates[KEY_DESC].fillna("").astype(str).str.lower()
+        starts = desc.str.startswith(first_kw)
+        contains = desc.str.contains(first_kw)
+        candidates = (
+            candidates.assign(
                 _starts=starts.astype(int),
                 _contains=contains.astype(int),
             )
@@ -151,10 +201,12 @@ def strict_partial_filter(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
             .drop(columns=["_starts", "_contains"])
         )
 
-    return filtered.reset_index(drop=True)
+    return candidates.reset_index(drop=True)
 
 
-# ---------------- UI & CSS ----------------
+# ==========================================================
+# UI & CSS
+# ==========================================================
 st.set_page_config(page_title="Material Viewfinder", layout="wide")
 
 st.markdown(
@@ -226,16 +278,22 @@ li[data-baseweb="option"][aria-selected="true"] {{
     unsafe_allow_html=True,
 )
 
-# ---------------- LOAD DATA ----------------
+# ==========================================================
+# LOAD DATA
+# ==========================================================
 df = load_all()
 if df.empty:
     st.error("Material files missing.")
     st.stop()
 
-# ---------------- HEADER ----------------
+# ==========================================================
+# HEADER
+# ==========================================================
 st.markdown("<h1>🔍 Material Viewfinder</h1>", unsafe_allow_html=True)
 
-# ---------------- FILTERS ----------------
+# ==========================================================
+# FILTERS
+# ==========================================================
 c1, c2, c3 = st.columns([1, 1, 1])
 
 plant = c1.selectbox("Plant", ["SHJM", "MIJM", "SGJM", "SSKT"])
@@ -247,7 +305,9 @@ machine = c3.selectbox(
 
 subset = df[(df["Department"] == department) & (df["Machine Type"] == machine)]
 
-# ---------------- SEARCH + CLEAR + RECENT STATE ----------------
+# ==========================================================
+# SEARCH + CLEAR + RECENT
+# ==========================================================
 if "query" not in st.session_state:
     st.session_state["query"] = ""
 
@@ -281,7 +341,7 @@ with c_search:
     q = st.text_input(
         "Search by description or material code",
         key="query",
-        placeholder="e.g., disc, stud, bearing, 13000...",
+        placeholder="e.g., disc stud bolt, bearing; gear|pulley",
     )
 
 with c_btn:
@@ -298,7 +358,7 @@ if clear:
     st.session_state["trigger_clear"] = True
     st.rerun()
 
-# ---------------- RECENT SEARCHES DISPLAY ----------------
+# Recent searches under search bar
 if st.session_state["recent_searches"]:
     st.markdown("### 🕘 Recent Searches")
     cols_recent = st.columns(len(st.session_state["recent_searches"]))
@@ -308,7 +368,9 @@ if st.session_state["recent_searches"]:
                 st.session_state["query"] = code
                 st.rerun()
 
-# ---------------- SEARCH ENGINE & GLOBAL FALLBACK ----------------
+# ==========================================================
+# SEARCH ENGINE + GLOBAL FALLBACK
+# ==========================================================
 filtered_subset = pd.DataFrame()
 global_matches = pd.DataFrame()
 suggestions = []
@@ -316,7 +378,8 @@ chosen = None
 status = "idle"  # idle / here / elsewhere / nowhere
 
 if q.strip():
-    filtered_subset = strict_partial_filter(subset, q)
+    # 1️⃣ Search in selected Department + Machine (hybrid multi-keyword)
+    filtered_subset = hybrid_multi_search(subset, q)
 
     if not filtered_subset.empty:
         status = "here"
@@ -326,8 +389,8 @@ if q.strip():
         ]
         chosen = st.selectbox("Suggestions", suggestions)
     else:
-        # search ENTIRE DATABASE
-        global_matches = strict_partial_filter(df, q)
+        # 2️⃣ If nothing here → search entire DF (global)
+        global_matches = hybrid_multi_search(df, q)
 
         if global_matches.empty:
             status = "nowhere"
@@ -353,15 +416,18 @@ if q.strip():
                 use_container_width=True,
             )
 
-# ---------------- DISPLAY SAP RECORD (CURRENT MACHINE) ----------------
+# ==========================================================
+# SAP RECORD TABLE (CURRENT MACHINE)
+# ==========================================================
 if submit and not q.strip():
-    # show all materials for that machine
+    # Show all materials for that machine
     st.subheader("📄 SAP Record — All Materials in Selected Machine")
     st.dataframe(clean_display(subset), use_container_width=True)
 
 elif status == "here" and not filtered_subset.empty:
-    # show only matching materials in selected machine
-    st.subheader(f"📄 SAP Record — {len(filtered_subset)} Result(s) in Selected Machine")
+    st.subheader(
+        f"📄 SAP Record — {len(filtered_subset)} Result(s) in Selected Machine"
+    )
     df_clean = clean_display(filtered_subset)
 
     def highlight_row(x):
@@ -375,7 +441,9 @@ elif status == "here" and not filtered_subset.empty:
         use_container_width=True,
     )
 
-# ---------------- SELECTED MATERIAL (AND RECENT STORE) ----------------
+# ==========================================================
+# SELECTED MATERIAL + RECENT SAVE
+# ==========================================================
 if chosen and status == "here" and not filtered_subset.empty:
     code = chosen.split("】")[0].replace("【", "").strip()
     if code:
