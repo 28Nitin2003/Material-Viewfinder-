@@ -1,5 +1,5 @@
 # ==========================================================
-# MATERIAL VIEWFINDER — STABLE SELECT + CART + GMAIL
+# MATERIAL VIEWFINDER — STABLE SELECT + CART + GMAIL + UI TWEAKS
 # ==========================================================
 
 import os
@@ -169,30 +169,59 @@ st.set_page_config(page_title="Material Viewfinder", layout="wide")
 st.markdown(
     f"""
 <style>
-* {{ border-radius:0px !important; }}
+
+* {{ border-radius: 6px !important; }}
+
 body, .stApp {{
     background:white !important;
     font-family:'Inter', sans-serif !important;
 }}
+
+/* MAIN BUTTON STYLE (Submit, Clear, others) */
 .stButton>button {{
     background:{BLUE} !important;
     color:white !important;
-    font-weight:800 !important;
-    padding:10px 30px !important;
+    font-weight:700 !important;
+    padding:6px 18px !important;   /* SMALLER BUTTONS */
+    font-size:14px !important;
+    border:none !important;
 }}
+
+/* RECENT SEARCH BUTTONS (inside columns row) */
+div[data-testid="column"] .stButton>button {{
+    background:{BLUE} !important;
+    padding:4px 14px !important;   /* SMALLER RECENT BUTTON */
+    font-size:13px !important;
+    font-weight:600 !important;
+}}
+
+/* TEXT INPUT */
 .stTextInput input {{
     border:2px solid {BLUE} !important;
     color:{BLUE} !important;
+    padding:6px !important;
+    font-size:15px !important;
 }}
-h1,h2,h3 {{
+
+/* LABELS */
+.stSelectbox label p,
+.stTextInput label p {{
+    font-weight:800 !important;
     color:{DARK_BLUE} !important;
-    font-weight:900 !important;
 }}
+
+/* TABLE HEADER */
 [data-testid="dataframe"] th {{
     background:{DARK_GREEN} !important;
     color:white !important;
     font-weight:900 !important;
 }}
+
+h1,h2,h3 {{
+    color:{DARK_BLUE} !important;
+    font-weight:900 !important;
+}}
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -269,22 +298,30 @@ if (
     st.session_state["current_machine"] = machine
 
 # ==========================================================
-# SEARCH BAR + CLEAR
+# SEARCH BAR + CLEAR (SMALL, ALIGNED BUTTONS)
 # ==========================================================
-c_s, c_btn, c_clr = st.columns([4, 1, 1])
+c_s, c_btn, c_clr = st.columns([5, 1, 1])
 
 with c_s:
-    q = st.text_input("Search by description or material code", key="query")
+    q = st.text_input(
+        "Search by description or material code",
+        key="query",
+        placeholder="e.g., disc, stud, bearing, 13000..."
+    )
 
 with c_btn:
+    st.write("")  # spacing
     submit = st.button("Submit")
 
 with c_clr:
-    if st.button("Clear"):
-        st.session_state["clear_trigger"] = True
-        st.session_state["table_df_base"] = None
-        st.session_state["table_label"] = ""
-        st.rerun()
+    st.write("")
+    clear = st.button("Clear", key="clear_btn")
+
+if clear:
+    st.session_state["clear_trigger"] = True
+    st.session_state["table_df_base"] = None
+    st.session_state["table_label"] = ""
+    st.rerun()
 
 # ==========================================================
 # RECENT SEARCHES
@@ -296,7 +333,7 @@ if st.session_state["recent_searches"]:
         with cols[i]:
             if st.button(item, key=f"recent_{i}"):
                 st.session_state["query"] = item
-                st.session_state["table_df_base"] = None  # force new table on next submit
+                st.session_state["table_df_base"] = None  # force new table
                 st.session_state["table_label"] = ""
                 st.rerun()
 
@@ -352,7 +389,7 @@ if base is not None and not base.empty:
 
     display_df = base.copy().reset_index(drop=True)
 
-    # add selection + quantity columns (every rerun, but structure same)
+    # add selection + quantity columns
     if "Select" not in display_df.columns:
         display_df.insert(0, "Select", False)
     if "Quantity" not in display_df.columns:
@@ -372,8 +409,8 @@ if base is not None and not base.empty:
         },
     )
 
-    # NOTE: we DO NOT overwrite table_df_base with edited.
-    # We only use edited when Add to Cart is pressed.
+    # IMPORTANT: we DO NOT overwrite table_df_base with edited
+    # (so selections are only per-run, as you wanted in option B).
 
     if st.button("Add Selected to Cart"):
         selected_rows = edited[edited["Select"] == True]
