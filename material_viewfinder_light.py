@@ -1,10 +1,10 @@
 # ==========================================================
-# MATERIAL VIEWFINDER — HYBRID MULTI-KEYWORD SEARCH
-# + SAP LIST + RECENT SEARCHES + GLOBAL SEARCH
+# MATERIAL VIEWFINDER — STABLE SELECT + CART + GMAIL
 # ==========================================================
 
 import os
 import re
+import urllib.parse
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -32,27 +32,22 @@ BORDER_GREEN = "#48BB78"
 # DATA EXTRACTION
 # ==========================================================
 def extract_tables(df: pd.DataFrame):
-    """Find each header row (where Material & Material Proposed Description sit)
-    and slice the table below it."""
+    """Detect blocks whose header row contains both KEY_MAT and KEY_DESC."""
     A = df.copy()
     vals = A.astype(str).values
-
     mat_rows = np.where(vals == KEY_MAT)[0]
     desc_rows = np.where(vals == KEY_DESC)[0]
     headers = sorted(set(mat_rows).intersection(set(desc_rows)))
 
-    tables = []
+    blocks = []
     for i, r in enumerate(headers):
         header_vals = A.iloc[r].astype(str).tolist()
-        cols = [
-            c for c, v in enumerate(header_vals)
-            if v.strip() not in ("", "nan", "None", "NaN")
-        ]
+        cols = [c for c, v in enumerate(header_vals) if v.strip() not in ("", "nan", "None", "NaN")]
         if not cols:
             continue
 
         end = headers[i + 1] if i + 1 < len(headers) else len(A)
-        block = A.iloc[r + 1:end, cols].copy()
+        block = A.iloc[r + 1 : end, cols].copy()
         block.columns = [header_vals[c] for c in cols]
         block = block.dropna(how="all")
 
@@ -60,9 +55,9 @@ def extract_tables(df: pd.DataFrame):
             block[c] = block[c].astype(str).str.strip()
 
         if not block.empty:
-            tables.append(block)
+            blocks.append(block)
 
-    return tables
+    return blocks
 
 
 @st.cache_data(show_spinner=True)
@@ -81,11 +76,7 @@ def load_all():
             for tbl in extract_tables(df):
                 T = tbl.copy()
                 T["Department"] = dept
-
-                machine = sheet.strip()
-                if machine.lower() == "sheet1":
-                    machine = "Winding"
-
+                machine = "Winding" if sheet.lower() == "sheet1" else sheet
                 T["Machine Type"] = machine
                 rows.extend(T.to_dict(orient="records"))
 
@@ -94,183 +85,112 @@ def load_all():
 
     df_all = pd.DataFrame(rows)
 
-    # cleanup strings
     for c in df_all.columns:
         df_all[c] = (
-            df_all[c].astype(str)
+            df_all[c]
+            .astype(str)
             .str.replace(r"\s+", " ", regex=True)
             .str.strip()
         )
 
-    # normalise empties
-    df_all = df_all.replace(
-        {"nan": np.nan, "NaN": np.nan, "None": np.nan, "": np.nan}
-    )
-
-    # keep only rows having either code or description
+    df_all = df_all.replace({"nan": None, "NaN": None, "None": None, "": None})
     df_all = df_all[(df_all[KEY_MAT].notna()) | (df_all[KEY_DESC].notna())]
 
     return df_all.reset_index(drop=True)
 
 
-# ==========================================================
-# HELPERS
-# ==========================================================
 def clean_display(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove 'nan' text and show empty cells instead."""
-    return df.replace(
-        {"nan": "", "NaN": "", "None": "", np.nan: ""}
-    ).fillna("")
+    """Replace nan/None with empty strings for nicer display."""
+    return df.replace({"nan": "", "NaN": "", "None": "", None: ""}).fillna("")
 
 
+# ==========================================================
+# SEARCH HELPERS
+# ==========================================================
 def parse_keywords(q: str):
-    """Split user query into keywords using spaces, comma, semicolon, pipe etc."""
     q = q.lower().strip()
     if not q:
         return []
     parts = re.split(r"[,\s;|]+", q)
-    # keep order but remove empties and duplicates
     seen = set()
-    keywords = []
+    out = []
     for p in parts:
-        p = p.strip()
-        if not p:
-            continue
-        if p not in seen:
+        if p and p not in seen:
             seen.add(p)
-            keywords.append(p)
-    return keywords
+            out.append(p)
+    return out
 
 
 def hybrid_multi_search(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
-    """
-    Hybrid multi-keyword search:
-    1) AND search (all keywords must appear)
-    2) If no AND results -> OR search (any keyword)
-    Ranking: based on first keyword in Material Proposed Description.
-    """
+    """Multi-keyword partial search on Material + Proposed Description."""
     keywords = parse_keywords(q)
     if not keywords:
         return df_sub.iloc[0:0].copy()
 
     df = df_sub.copy()
-
-    # columns to search in
-    search_cols = [KEY_MAT, KEY_DESC]
-    for extra in ["Material description", "Material Long Description"]:
-        if extra in df.columns:
-            search_cols.append(extra)
-
-    # combine text for each row
     combined = (
-        df[search_cols]
+        df[[KEY_MAT, KEY_DESC]]
         .fillna("")
         .astype(str)
         .agg(" ".join, axis=1)
         .str.lower()
     )
 
-    # AND mask: all keywords must appear
     masks_and = [combined.str.contains(k) for k in keywords]
-    mask_and = np.logical_and.reduce(masks_and) if masks_and else np.zeros(len(df), dtype=bool)
-
-    # OR mask: any keyword appears
+    mask_and = np.logical_and.reduce(masks_and)
     masks_or = [combined.str.contains(k) for k in keywords]
-    mask_or = np.logical_or.reduce(masks_or) if masks_or else np.zeros(len(df), dtype=bool)
+    mask_or = np.logical_or.reduce(masks_or)
 
     if mask_and.any():
-        candidates = df[mask_and].copy()
+        cand = df[mask_and].copy()
     else:
-        candidates = df[mask_or].copy()
+        cand = df[mask_or].copy()
 
-    if candidates.empty:
-        return candidates
+    if cand.empty:
+        return cand
 
-    # Ranking based on FIRST keyword using description column
-    first_kw = keywords[0]
-    if KEY_DESC in candidates.columns:
-        desc = candidates[KEY_DESC].fillna("").astype(str).str.lower()
-        starts = desc.str.startswith(first_kw)
-        contains = desc.str.contains(first_kw)
-        candidates = (
-            candidates.assign(
-                _starts=starts.astype(int),
-                _contains=contains.astype(int),
-            )
-            .sort_values(by=["_starts", "_contains"], ascending=[False, False])
-            .drop(columns=["_starts", "_contains"])
-        )
+    first = keywords[0]
+    desc = cand[KEY_DESC].fillna("").astype(str).str.lower()
+    starts = desc.str.startswith(first)
+    contains = desc.str.contains(first)
 
-    return candidates.reset_index(drop=True)
+    cand = (
+        cand.assign(_starts=starts.astype(int), _contains=contains.astype(int))
+        .sort_values(by=["_starts", "_contains"], ascending=[False, False])
+        .drop(columns=["_starts", "_contains"])
+    )
+    return cand.reset_index(drop=True)
 
 
 # ==========================================================
-# UI & CSS
+# UI CSS
 # ==========================================================
 st.set_page_config(page_title="Material Viewfinder", layout="wide")
-
 st.markdown(
     f"""
 <style>
 * {{ border-radius:0px !important; }}
-
 body, .stApp {{
     background:white !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family:'Inter', sans-serif !important;
 }}
-
-h1,h2,h3,h4 {{
-    color:{DARK_BLUE} !important;
-    font-weight:900 !important;
-}}
-
-.stSelectbox label p, .stTextInput label p {{
-    font-weight:900 !important;
-    color:{DARK_BLUE} !important;
-}}
-
-.stTextInput input {{
-    border:2px solid {BLUE} !important;
-    background:white !important;
-    color:{BLUE} !important;
-    caret-color:{BLUE} !important;
-    font-weight:700 !important;
-}}
-
 .stButton>button {{
     background:{BLUE} !important;
     color:white !important;
-    padding:10px 32px !important;
     font-weight:800 !important;
+    padding:10px 30px !important;
 }}
-.stButton>button:hover {{
-    background:#0094B5 !important;
+.stTextInput input {{
+    border:2px solid {BLUE} !important;
+    color:{BLUE} !important;
 }}
-
+h1,h2,h3 {{
+    color:{DARK_BLUE} !important;
+    font-weight:900 !important;
+}}
 [data-testid="dataframe"] th {{
     background:{DARK_GREEN} !important;
     color:white !important;
-    font-weight:900 !important;
-}}
-
-[data-testid="stElementToolbar"] button {{
-    background:white !important;
-    border:1px solid #DDD !important;
-    padding:6px !important;
-}}
-
-[data-testid="stElementToolbar"] button svg {{
-    width:30px !important;
-    height:30px !important;
-    color:#111 !important;
-}}
-
-/* Suggestions dropdown */
-li[data-baseweb="option"]:hover,
-li[data-baseweb="option"][aria-selected="true"] {{
-    background:{LIGHT_GREEN} !important;
-    border-left:5px solid {BORDER_GREEN} !important;
-    color:{DARK_GREEN} !important;
     font-weight:900 !important;
 }}
 </style>
@@ -279,11 +199,45 @@ li[data-baseweb="option"][aria-selected="true"] {{
 )
 
 # ==========================================================
+# SESSION STATE INIT
+# ==========================================================
+if "query" not in st.session_state:
+    st.session_state["query"] = ""
+
+if "clear_trigger" not in st.session_state:
+    st.session_state["clear_trigger"] = False
+
+if "recent_searches" not in st.session_state:
+    st.session_state["recent_searches"] = []
+
+if "cart" not in st.session_state:
+    st.session_state["cart"] = {}
+
+# base table (without Select/Quantity) + label
+if "table_df_base" not in st.session_state:
+    st.session_state["table_df_base"] = None
+if "table_label" not in st.session_state:
+    st.session_state["table_label"] = ""
+
+# track current filter to clear table when dept/machine changes
+if "current_dept" not in st.session_state:
+    st.session_state["current_dept"] = None
+if "current_machine" not in st.session_state:
+    st.session_state["current_machine"] = None
+
+# apply clear BEFORE creating text input
+if st.session_state["clear_trigger"]:
+    st.session_state["query"] = ""
+    st.session_state["table_df_base"] = None
+    st.session_state["table_label"] = ""
+    st.session_state["clear_trigger"] = False
+
+# ==========================================================
 # LOAD DATA
 # ==========================================================
 df = load_all()
 if df.empty:
-    st.error("Material files missing.")
+    st.error("❌ Excel material files missing.")
     st.stop()
 
 # ==========================================================
@@ -294,8 +248,7 @@ st.markdown("<h1>🔍 Material Viewfinder</h1>", unsafe_allow_html=True)
 # ==========================================================
 # FILTERS
 # ==========================================================
-c1, c2, c3 = st.columns([1, 1, 1])
-
+c1, c2, c3 = st.columns(3)
 plant = c1.selectbox("Plant", ["SHJM", "MIJM", "SGJM", "SSKT"])
 department = c2.selectbox("Department", sorted(df["Department"].unique()))
 machine = c3.selectbox(
@@ -305,151 +258,217 @@ machine = c3.selectbox(
 
 subset = df[(df["Department"] == department) & (df["Machine Type"] == machine)]
 
+# if department/machine changed, clear table
+if (
+    st.session_state["current_dept"] != department
+    or st.session_state["current_machine"] != machine
+):
+    st.session_state["table_df_base"] = None
+    st.session_state["table_label"] = ""
+    st.session_state["current_dept"] = department
+    st.session_state["current_machine"] = machine
+
 # ==========================================================
-# SEARCH + CLEAR + RECENT
+# SEARCH BAR + CLEAR
 # ==========================================================
-if "query" not in st.session_state:
-    st.session_state["query"] = ""
+c_s, c_btn, c_clr = st.columns([4, 1, 1])
 
-if "trigger_clear" not in st.session_state:
-    st.session_state["trigger_clear"] = False
-
-if "recent_searches" not in st.session_state:
-    st.session_state["recent_searches"] = []  # top 5 material codes
-
-
-def add_recent(code: str):
-    """Store last 5 material codes (no duplicates)."""
-    code = code.strip()
-    if not code:
-        return
-
-    recent = st.session_state["recent_searches"]
-    if code in recent:
-        recent.remove(code)
-    recent.insert(0, code)
-    st.session_state["recent_searches"] = recent[:5]
-
-
-if st.session_state["trigger_clear"]:
-    st.session_state["query"] = ""
-    st.session_state["trigger_clear"] = False
-
-c_search, c_btn, c_clear = st.columns([4, 1, 1])
-
-with c_search:
-    q = st.text_input(
-        "Search by description or material code",
-        key="query",
-        placeholder="e.g., disc stud bolt, bearing; gear|pulley",
-    )
+with c_s:
+    q = st.text_input("Search by description or material code", key="query")
 
 with c_btn:
-    st.write("")
-    st.write("")
     submit = st.button("Submit")
 
-with c_clear:
-    st.write("")
-    st.write("")
-    clear = st.button("Clear")
+with c_clr:
+    if st.button("Clear"):
+        st.session_state["clear_trigger"] = True
+        st.session_state["table_df_base"] = None
+        st.session_state["table_label"] = ""
+        st.rerun()
 
-if clear:
-    st.session_state["trigger_clear"] = True
-    st.rerun()
-
-# Recent searches under search bar
+# ==========================================================
+# RECENT SEARCHES
+# ==========================================================
 if st.session_state["recent_searches"]:
     st.markdown("### 🕘 Recent Searches")
-    cols_recent = st.columns(len(st.session_state["recent_searches"]))
-    for i, code in enumerate(st.session_state["recent_searches"]):
-        with cols_recent[i]:
-            if st.button(code, key=f"recent_{code}"):
-                st.session_state["query"] = code
+    cols = st.columns(len(st.session_state["recent_searches"]))
+    for i, item in enumerate(st.session_state["recent_searches"]):
+        with cols[i]:
+            if st.button(item, key=f"recent_{i}"):
+                st.session_state["query"] = item
+                st.session_state["table_df_base"] = None  # force new table on next submit
+                st.session_state["table_label"] = ""
                 st.rerun()
 
 # ==========================================================
-# SEARCH ENGINE + GLOBAL FALLBACK
+# ON SUBMIT: DECIDE WHICH TABLE TO SHOW
 # ==========================================================
-filtered_subset = pd.DataFrame()
-global_matches = pd.DataFrame()
-suggestions = []
-chosen = None
-status = "idle"  # idle / here / elsewhere / nowhere
+if submit:
+    q_stripped = q.strip()
 
-if q.strip():
-    # 1️⃣ Search in selected Department + Machine (hybrid multi-keyword)
-    filtered_subset = hybrid_multi_search(subset, q)
+    # Case 1: empty query → show ALL materials in selected machine
+    if not q_stripped:
+        base = clean_display(subset).reset_index(drop=True)
+        st.session_state["table_df_base"] = base
+        st.session_state["table_label"] = f"📄 SAP Record — All materials in {machine}"
 
-    if not filtered_subset.empty:
-        status = "here"
-        suggestions = [
-            f"【{str(row.get(KEY_MAT, ''))}】 {str(row.get(KEY_DESC, ''))}"
-            for _, row in filtered_subset.iterrows()
-        ]
-        chosen = st.selectbox("Suggestions", suggestions)
     else:
-        # 2️⃣ If nothing here → search entire DF (global)
-        global_matches = hybrid_multi_search(df, q)
+        # non-empty query → try local (this machine)
+        filtered_local = hybrid_multi_search(subset, q_stripped)
 
-        if global_matches.empty:
-            status = "nowhere"
-            st.error("❌ Material not found anywhere in database")
+        # update recent searches (only for non-empty query)
+        recent = st.session_state["recent_searches"]
+        if q_stripped in recent:
+            recent.remove(q_stripped)
+        recent.insert(0, q_stripped)
+        st.session_state["recent_searches"] = recent[:5]
+
+        if not filtered_local.empty:
+            base = clean_display(filtered_local).reset_index(drop=True)
+            st.session_state["table_df_base"] = base
+            st.session_state["table_label"] = (
+                f"📄 SAP Record — {len(base)} result(s) in {machine}"
+            )
         else:
-            status = "elsewhere"
-            st.warning(
-                "⚠️ Material not found in selected machine — "
-                "but exists in other Departments / Machines."
-            )
+            # nothing in this machine → check global
+            filtered_global = hybrid_multi_search(df, q_stripped)
+            st.session_state["table_df_base"] = None
+            st.session_state["table_label"] = ""
 
-            gm_clean = clean_display(global_matches)
-
-            def highlight_global(x):
-                return [
-                    f"background-color:{LIGHT_GREEN};"
-                    f"color:{DARK_GREEN};font-weight:bold"
-                ] * len(x)
-
-            st.subheader("🌍 Found in Other Departments / Machines")
-            st.dataframe(
-                gm_clean.style.apply(highlight_global, axis=1),
-                use_container_width=True,
-            )
+            if filtered_global.empty:
+                st.error("❌ Material not found anywhere.")
+            else:
+                st.warning("⚠ Material not found in this machine, but found elsewhere:")
+                st.dataframe(clean_display(filtered_global), use_container_width=True)
 
 # ==========================================================
-# SAP RECORD TABLE (CURRENT MACHINE)
+# SHOW SAP TABLE WITH STABLE SELECTION
 # ==========================================================
-if submit and not q.strip():
-    # Show all materials for that machine
-    st.subheader("📄 SAP Record — All Materials in Selected Machine")
-    st.dataframe(clean_display(subset), use_container_width=True)
+base = st.session_state["table_df_base"]
+label = st.session_state["table_label"]
 
-elif status == "here" and not filtered_subset.empty:
-    st.subheader(
-        f"📄 SAP Record — {len(filtered_subset)} Result(s) in Selected Machine"
-    )
-    df_clean = clean_display(filtered_subset)
+if base is not None and not base.empty:
+    st.subheader(label)
 
-    def highlight_row(x):
-        return [
-            f"background-color:{LIGHT_GREEN};"
-            f"color:{DARK_GREEN};font-weight:bold"
-        ] * len(x)
+    display_df = base.copy().reset_index(drop=True)
 
-    st.dataframe(
-        df_clean.style.apply(highlight_row, axis=1),
+    # add selection + quantity columns (every rerun, but structure same)
+    if "Select" not in display_df.columns:
+        display_df.insert(0, "Select", False)
+    if "Quantity" not in display_df.columns:
+        display_df.insert(1, "Quantity", 1)
+
+    edited = st.data_editor(
+        display_df,
+        key="sap_table_editor",
+        hide_index=True,
         use_container_width=True,
+        num_rows="fixed",
+        column_config={
+            "Select": st.column_config.CheckboxColumn("Select"),
+            "Quantity": st.column_config.NumberColumn(
+                "Quantity", min_value=1, step=1
+            ),
+        },
     )
 
+    # NOTE: we DO NOT overwrite table_df_base with edited.
+    # We only use edited when Add to Cart is pressed.
+
+    if st.button("Add Selected to Cart"):
+        selected_rows = edited[edited["Select"] == True]
+
+        if selected_rows.empty:
+            st.warning("No items selected.")
+        else:
+            cart = st.session_state["cart"]
+
+            for _, row in selected_rows.iterrows():
+                code = str(row.get(KEY_MAT, "")).strip()
+                if not code:
+                    continue
+
+                try:
+                    qty = int(row.get("Quantity", 1))
+                    if qty < 1:
+                        qty = 1
+                except Exception:
+                    qty = 1
+
+                cart[code] = {
+                    "Material": code,
+                    "Description": row.get(KEY_DESC, ""),
+                    "Department": row.get("Department", ""),
+                    "Machine Type": row.get("Machine Type", ""),
+                    "Quantity": qty,
+                }
+
+            st.session_state["cart"] = cart
+            st.success(f"✔ Added {len(selected_rows)} item(s) to cart.")
+
 # ==========================================================
-# SELECTED MATERIAL + RECENT SAVE
+# CART
 # ==========================================================
-if chosen and status == "here" and not filtered_subset.empty:
-    code = chosen.split("】")[0].replace("【", "").strip()
-    if code:
-        add_recent(code)
-        st.write("")
-        st.markdown(
-            f"<h3 style='color:{BLUE};'>Selected: {code}</h3>",
-            unsafe_allow_html=True,
+st.write("---")
+st.subheader("🛒 Cart")
+
+if not st.session_state["cart"]:
+    st.info("Cart is empty.")
+else:
+    cart_df = pd.DataFrame(st.session_state["cart"].values())
+    st.dataframe(cart_df, use_container_width=True)
+
+    if st.button("Clear Cart"):
+        st.session_state["cart"] = {}
+        st.rerun()
+
+    # ======================================================
+    # EMAIL VIA GMAIL (NEW TAB)
+    # ======================================================
+    st.write("---")
+    st.subheader("✉ Send Materials via Gmail")
+
+    to_email = st.text_input("Receiver Email")
+
+    subject = "Material Requirement – Material Viewfinder"
+
+    body_lines = [
+        "Dear Sir/Madam,",
+        "",
+        "Please arrange the following materials:",
+        "",
+    ]
+
+    for item in st.session_state["cart"].values():
+        body_lines.append(
+            f"- {item['Material']} — {item['Description']} "
+            f"(Dept: {item['Department']}, Machine: {item['Machine Type']}, Qty: {item['Quantity']})"
         )
+
+    body_lines += ["", "Regards,", "Shekhar"]
+    body = "\n".join(body_lines)
+
+    st.text_area("Email Preview", body, height=200)
+
+    if st.button("Send Email"):
+        if not to_email.strip():
+            st.warning("Please enter receiver email.")
+        else:
+            subject_encoded = urllib.parse.quote(subject)
+            body_encoded = urllib.parse.quote(body)
+            to_encoded = urllib.parse.quote(to_email)
+
+            gmail_url = (
+                "https://mail.google.com/mail/?view=cm&fs=1"
+                f"&to={to_encoded}&su={subject_encoded}&body={body_encoded}"
+            )
+
+            # Open Gmail in a new tab without closing Streamlit
+            st.markdown(
+                f"""
+                <script>
+                    window.open("{gmail_url}", "_blank");
+                </script>
+                """,
+                unsafe_allow_html=True,
+            )
