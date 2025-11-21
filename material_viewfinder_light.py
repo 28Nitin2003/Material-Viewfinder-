@@ -28,33 +28,31 @@ BORDER_GREEN = "#48BB78"
 
 # ---------------- DATA EXTRACTION ----------------
 def extract_tables(df):
-    """Find all table blocks that start with headers containing Material + Material Proposed Description."""
     A = df.copy()
     vals = A.astype(str).values
-    mat = set(np.where(vals == KEY_MAT)[0])
-    desc = set(np.where(vals == KEY_DESC)[0])
-    headers = sorted(mat.intersection(desc))
+    mat_rows = np.where(vals == KEY_MAT)[0]
+    desc_rows = np.where(vals == KEY_DESC)[0]
+    headers = sorted(set(mat_rows).intersection(set(desc_rows)))
 
-    out = []
+    tables = []
     for i, r in enumerate(headers):
         header_vals = A.iloc[r].astype(str).tolist()
-        cols = [c for c, v in enumerate(header_vals)
-                if v.strip() not in ("", "nan", "NaN", "None")]
+        cols = [c for c,v in enumerate(header_vals) if v.strip() not in ("","nan","None","NaN")]
         if not cols:
             continue
 
-        end = headers[i + 1] if i + 1 < len(headers) else len(A)
-        block = A.iloc[r + 1:end, cols].copy()
-        block.columns = [header_vals[c].strip() for c in cols]
-        block = block.dropna(how="all")
+        end = headers[i+1] if i+1<len(headers) else len(A)
+        block = A.iloc[r+1:end, cols].copy()
+        block.columns = [header_vals[c] for c in cols]
+        block = block.dropna(how='all')
 
         for c in block.columns:
-            if block[c].dtype == object:
-                block[c] = block[c].astype(str).str.strip()
+            block[c] = block[c].astype(str).str.strip()
 
         if not block.empty:
-            out.append(block)
-    return out
+            tables.append(block)
+
+    return tables
 
 
 @st.cache_data(show_spinner=True)
@@ -68,17 +66,14 @@ def load_all():
             continue
 
         sheets = pd.read_excel(path, sheet_name=None, header=None)
-
         for sheet, df in sheets.items():
             for tbl in extract_tables(df):
                 T = tbl.copy()
                 T["Department"] = dept
-
-                m = sheet.strip()
-                if m.lower() == "sheet1":
-                    m = "Winding"
-                T["Machine Type"] = m
-
+                machine = sheet.strip()
+                if machine.lower()=="sheet1":
+                    machine="Winding"
+                T["Machine Type"] = machine
                 rows.extend(T.to_dict(orient="records"))
 
     if not rows:
@@ -86,56 +81,32 @@ def load_all():
 
     df_all = pd.DataFrame(rows)
 
-    # Strip and normalise all string columns
+    # cleanup strings
     for c in df_all.columns:
-        if df_all[c].dtype == object:
-            df_all[c] = (
-                df_all[c]
-                .astype(str)
-                .str.replace(r"\s+", " ", regex=True)
-                .str.strip()
-            )
+        df_all[c] = df_all[c].astype(str).str.replace(r"\s+"," ",regex=True).str.strip()
 
-    # Treat placeholder strings as NULL
+    # remove useless values
     df_all = df_all.replace(
         {"nan": np.nan, "NaN": np.nan, "None": np.nan, "": np.nan}
     )
 
-    # Keep only rows with some description or material code
-    df_all = df_all[
-        df_all[KEY_MAT].notna() | df_all[KEY_DESC].notna()
-    ].reset_index(drop=True)
+    df_all = df_all[(df_all[KEY_MAT].notna()) | (df_all[KEY_DESC].notna())]
 
-    return df_all
+    return df_all.reset_index(drop=True)
 
 
-# ---------------- SMALL HELPERS ----------------
+# ---------------- HELPERS ----------------
+
 def clean_display(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove NaN / placeholder strings for display."""
-    if df is None or df.empty:
-        return df
-    return (
-        df.replace({"nan": "", "NaN": "", "None": "", np.nan: ""})
-        .fillna("")
-    )
+    return df.replace(
+        {"nan":"", "NaN":"", "None":"", np.nan:""}
+    ).fillna("")
 
 
-def strict_partial_filter(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
-    """
-    Partial match, but STRICT:
-    Only rows where query actually appears in:
-    - Material code
-    - Material Proposed Description
-    - Material description (if present)
-    - Material Long Description (if present)
-    """
-    if not q.strip():
-        return pd.DataFrame()
-
+def strict_partial_filter(df_sub, q):
     q = q.lower().strip()
     df = df_sub.copy()
 
-    # Columns to search in
     search_cols = [KEY_MAT, KEY_DESC]
     for extra in ["Material description", "Material Long Description"]:
         if extra in df.columns:
@@ -143,23 +114,22 @@ def strict_partial_filter(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
 
     mask = False
     for col in search_cols:
-        s = df[col].fillna("").astype(str).str.lower()
-        mask = mask | s.str.contains(q)
+        coltext = df[col].fillna("").astype(str).str.lower()
+        mask = mask | coltext.str.contains(q)
 
     filtered = df[mask].copy()
 
-    # Sort with a simple priority: description contains at beginning first, then general
     if KEY_DESC in filtered.columns:
-        desc_series = filtered[KEY_DESC].fillna("").astype(str).str.lower()
-        starts = desc_series.str.startswith(q)
-        contains = desc_series.str.contains(q)
-        # priority key: (-starts, -contains)
+        desc = filtered[KEY_DESC].fillna("").astype(str).str.lower()
+        starts = desc.str.startswith(q)
+        contains = desc.str.contains(q)
         filtered = filtered.assign(
             _starts=starts.astype(int),
-            _contains=contains.astype(int),
+            _contains=contains.astype(int)
         ).sort_values(
-            by=["_starts", "_contains"], ascending=[False, False]
-        ).drop(columns=["_starts", "_contains"])
+            by=["_starts","_contains"],
+            ascending=[False,False]
+        ).drop(columns=["_starts","_contains"])
 
     return filtered.reset_index(drop=True)
 
@@ -167,42 +137,33 @@ def strict_partial_filter(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
 # ---------------- UI & CSS ----------------
 st.set_page_config(page_title="Material Viewfinder", layout="wide")
 
-st.markdown(
-    f"""
+st.markdown(f"""
 <style>
-* {{ border-radius: 0px !important; }}
+* {{ border-radius:0px !important; }}
 
 body, .stApp {{
-    background: white !important;
+    background:white !important;
     font-family: 'Inter', sans-serif !important;
 }}
 
-h1, h2, h3, h4 {{
-    color: {DARK_BLUE} !important;
-    font-weight: 900 !important;
+h1,h2,h3,h4 {{
+    color:{DARK_BLUE} !important;
+    font-weight:900 !important;
 }}
 
 .stSelectbox label p, .stTextInput label p {{
-    font-weight: 900 !important;
-    color: {DARK_BLUE} !important;
+    font-weight:900 !important;
+    color:{DARK_BLUE} !important;
 }}
 
-/* Search input text always visible */
 .stTextInput input {{
-    border: 2px solid {BLUE} !important;
+    border:2px solid {BLUE} !important;
     background:white !important;
     color:{BLUE} !important;
     caret-color:{BLUE} !important;
-    font-weight:600 !important;
+    font-weight:700 !important;
 }}
 
-/* Dropdowns */
-.stSelectbox div[data-baseweb="select"] {{
-    border: 2px solid #cccccc !important;
-    background:white !important;
-}}
-
-/* Buttons */
 .stButton>button {{
     background:{BLUE} !important;
     color:white !important;
@@ -213,26 +174,25 @@ h1, h2, h3, h4 {{
     background:#0094B5 !important;
 }}
 
-/* SAP Record header */
 [data-testid="dataframe"] th {{
     background:{DARK_GREEN} !important;
     color:white !important;
     font-weight:900 !important;
 }}
 
-/* Toolbar icons */
 [data-testid="stElementToolbar"] button {{
     background:white !important;
     border:1px solid #DDD !important;
     padding:6px !important;
 }}
+
 [data-testid="stElementToolbar"] button svg {{
     width:30px !important;
     height:30px !important;
     color:#111 !important;
 }}
 
-/* Suggest options */
+/* Suggestions */
 li[data-baseweb="option"]:hover,
 li[data-baseweb="option"][aria-selected="true"] {{
     background:{LIGHT_GREEN} !important;
@@ -241,61 +201,72 @@ li[data-baseweb="option"][aria-selected="true"] {{
     font-weight:900 !important;
 }}
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
+
 
 # ---------------- LOAD DATA ----------------
 df = load_all()
 
 if df.empty:
-    st.error("Material files not found.")
+    st.error("Material files missing.")
     st.stop()
+
 
 # ---------------- HEADER ----------------
 st.markdown("<h1>🔍 Material Viewfinder</h1>", unsafe_allow_html=True)
 
-# ---------------- FILTERS ----------------
-c1, c2, c3 = st.columns([1, 1, 1])
 
-plant = c1.selectbox("Plant", ["SHJM", "MIJM", "SGJM", "SSKT"])
+# ---------------- FILTERS ----------------
+c1,c2,c3 = st.columns([1,1,1])
+
+plant = c1.selectbox("Plant", ["SHJM","MIJM","SGJM","SSKT"])
 department = c2.selectbox("Department", sorted(df["Department"].unique()))
 machine = c3.selectbox(
     "Machine Type",
-    sorted(df[df["Department"] == department]["Machine Type"].unique()),
+    sorted(df[df["Department"]==department]["Machine Type"].unique())
 )
 
-subset = df[
-    (df["Department"] == department) & (df["Machine Type"] == machine)
-]
+subset = df[(df["Department"]==department)&(df["Machine Type"]==machine)]
 
-# ---------------- SEARCH BAR + BUTTONS ----------------
-st.write("---")
-c_search, c_btn, c_clear = st.columns([4, 1, 1])
+
+# ---------------- SEARCH + CLEAR BUTTON ----------------
 
 if "query" not in st.session_state:
     st.session_state["query"] = ""
 
+if "trigger_clear" not in st.session_state:
+    st.session_state["trigger_clear"] = False
+
+if st.session_state["trigger_clear"]:
+    st.session_state["query"] = ""
+    st.session_state["trigger_clear"] = False
+
+c_search, c_btn, c_clear = st.columns([4,1,1])
+
 with c_search:
     q = st.text_input(
         "Search by description or material code",
-        placeholder="e.g., disc, stud, 13000...",
         key="query",
+        placeholder="e.g., disc, stud, bearing, 13000..."
     )
 
 with c_btn:
+    st.write("")
     st.write("")
     submit = st.button("Submit")
 
 with c_clear:
     st.write("")
+    st.write("")
     clear = st.button("Clear")
 
 if clear:
-    st.session_state["query"] = ""
-    st.experimental_rerun()
+    st.session_state["trigger_clear"] = True
+    st.rerun()
 
-# ---------------- SEARCH ENGINE EXECUTION ----------------
+
+# ---------------- SEARCH ENGINE ----------------
+
 filtered = pd.DataFrame()
 suggestions = []
 chosen = None
@@ -306,43 +277,38 @@ if q.strip():
     if filtered.empty:
         st.error("❌ Material not found")
     else:
-        # Build suggestions from filtered data ONLY
         suggestions = [
-            f"【{str(row.get(KEY_MAT, '')).strip()}】 "
-            f"{str(row.get(KEY_DESC, '')).strip()}"
+            f"【{str(row.get(KEY_MAT,''))}】 {str(row.get(KEY_DESC,''))}"
             for _, row in filtered.iterrows()
         ]
         chosen = st.selectbox("Suggestions", suggestions)
 
+
 # ---------------- DISPLAY SAP RECORD ----------------
 
-# CASE A – Submit with empty search: show all for that machine
+# Case A: Submit without search → show ALL items of machine
 if submit and not q.strip():
     st.subheader("📄 SAP Record — All Materials")
     st.dataframe(clean_display(subset), use_container_width=True)
 
-# CASE B – query present and matches found: show ALL matched materials
+# Case B: Show all matched rows
 elif not filtered.empty:
     st.subheader(f"📄 SAP Record — {len(filtered)} Result(s) Found")
-
     df_clean = clean_display(filtered)
 
-    def highlight_all(s):
+    def highlight_row(x):
         return [
             f"background-color:{LIGHT_GREEN};color:{DARK_GREEN};font-weight:bold"
-        ] * len(s)
+        ] * len(x)
 
-    st.dataframe(
-        df_clean.style.apply(highlight_all, axis=1),
-        use_container_width=True,
-    )
+    st.dataframe(df_clean.style.apply(highlight_row, axis=1), use_container_width=True)
 
-# CASE C – suggestion chosen: show selected code label (table already shows full list)
+# Case C: Show selected code label
 if chosen and not filtered.empty:
-    code = chosen.split("】")[0].replace("【", "").strip()
+    code = chosen.split("】")[0].replace("【","").strip()
     if code:
         st.write("")
         st.markdown(
             f"<h3 style='color:{BLUE};'>Selected: {code}</h3>",
-            unsafe_allow_html=True,
+            unsafe_allow_html=True
         )
