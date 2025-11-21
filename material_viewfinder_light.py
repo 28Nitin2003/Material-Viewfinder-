@@ -1,5 +1,6 @@
 # ==========================================================
-# MATERIAL VIEWFINDER — FINAL STRICT PARTIAL SEARCH + SAP LIST
+# MATERIAL VIEWFINDER — STRICT PARTIAL SEARCH + SAP LIST
+# + RECENT SEARCHES + GLOBAL SEARCH
 # ==========================================================
 
 import os
@@ -27,9 +28,12 @@ LIGHT_GREEN = "#D1FAE5"
 BORDER_GREEN = "#48BB78"
 
 # ---------------- DATA EXTRACTION ----------------
-def extract_tables(df):
+def extract_tables(df: pd.DataFrame):
+    """Find each header row (where Material & Material Proposed Description sit)
+    and slice the table below it."""
     A = df.copy()
     vals = A.astype(str).values
+
     mat_rows = np.where(vals == KEY_MAT)[0]
     desc_rows = np.where(vals == KEY_DESC)[0]
     headers = sorted(set(mat_rows).intersection(set(desc_rows)))
@@ -37,14 +41,17 @@ def extract_tables(df):
     tables = []
     for i, r in enumerate(headers):
         header_vals = A.iloc[r].astype(str).tolist()
-        cols = [c for c,v in enumerate(header_vals) if v.strip() not in ("","nan","None","NaN")]
+        cols = [
+            c for c, v in enumerate(header_vals)
+            if v.strip() not in ("", "nan", "None", "NaN")
+        ]
         if not cols:
             continue
 
-        end = headers[i+1] if i+1<len(headers) else len(A)
-        block = A.iloc[r+1:end, cols].copy()
+        end = headers[i + 1] if i + 1 < len(headers) else len(A)
+        block = A.iloc[r + 1:end, cols].copy()
         block.columns = [header_vals[c] for c in cols]
-        block = block.dropna(how='all')
+        block = block.dropna(how="all")
 
         for c in block.columns:
             block[c] = block[c].astype(str).str.strip()
@@ -65,14 +72,17 @@ def load_all():
         if not os.path.exists(path):
             continue
 
-        sheets = pd.read_excel(path, sheet_name=None, header=None)
-        for sheet, df in sheets.items():
+        xls = pd.ExcelFile(path)
+        for sheet in xls.sheet_names:
+            df = pd.read_excel(path, sheet_name=sheet, header=None)
             for tbl in extract_tables(df):
                 T = tbl.copy()
                 T["Department"] = dept
+
                 machine = sheet.strip()
-                if machine.lower()=="sheet1":
-                    machine="Winding"
+                if machine.lower() == "sheet1":
+                    machine = "Winding"
+
                 T["Machine Type"] = machine
                 rows.extend(T.to_dict(orient="records"))
 
@@ -83,27 +93,33 @@ def load_all():
 
     # cleanup strings
     for c in df_all.columns:
-        df_all[c] = df_all[c].astype(str).str.replace(r"\s+"," ",regex=True).str.strip()
+        df_all[c] = (
+            df_all[c].astype(str)
+            .str.replace(r"\s+", " ", regex=True)
+            .str.strip()
+        )
 
-    # remove useless values
+    # normalise empties
     df_all = df_all.replace(
         {"nan": np.nan, "NaN": np.nan, "None": np.nan, "": np.nan}
     )
 
+    # keep only rows having either code or description
     df_all = df_all[(df_all[KEY_MAT].notna()) | (df_all[KEY_DESC].notna())]
 
     return df_all.reset_index(drop=True)
 
 
 # ---------------- HELPERS ----------------
-
 def clean_display(df: pd.DataFrame) -> pd.DataFrame:
+    """Remove 'nan' text and show empty cells instead."""
     return df.replace(
-        {"nan":"", "NaN":"", "None":"", np.nan:""}
+        {"nan": "", "NaN": "", "None": "", np.nan: ""}
     ).fillna("")
 
 
-def strict_partial_filter(df_sub, q):
+def strict_partial_filter(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
+    """Search in Material, Material Proposed Description + optional long/short descriptions."""
     q = q.lower().strip()
     df = df_sub.copy()
 
@@ -118,18 +134,22 @@ def strict_partial_filter(df_sub, q):
         mask = mask | coltext.str.contains(q)
 
     filtered = df[mask].copy()
+    if filtered.empty:
+        return filtered.reset_index(drop=True)
 
     if KEY_DESC in filtered.columns:
         desc = filtered[KEY_DESC].fillna("").astype(str).str.lower()
         starts = desc.str.startswith(q)
         contains = desc.str.contains(q)
-        filtered = filtered.assign(
-            _starts=starts.astype(int),
-            _contains=contains.astype(int)
-        ).sort_values(
-            by=["_starts","_contains"],
-            ascending=[False,False]
-        ).drop(columns=["_starts","_contains"])
+
+        filtered = (
+            filtered.assign(
+                _starts=starts.astype(int),
+                _contains=contains.astype(int),
+            )
+            .sort_values(by=["_starts", "_contains"], ascending=[False, False])
+            .drop(columns=["_starts", "_contains"])
+        )
 
     return filtered.reset_index(drop=True)
 
@@ -137,7 +157,8 @@ def strict_partial_filter(df_sub, q):
 # ---------------- UI & CSS ----------------
 st.set_page_config(page_title="Material Viewfinder", layout="wide")
 
-st.markdown(f"""
+st.markdown(
+    f"""
 <style>
 * {{ border-radius:0px !important; }}
 
@@ -192,7 +213,7 @@ h1,h2,h3,h4 {{
     color:#111 !important;
 }}
 
-/* Suggestions */
+/* Suggestions dropdown */
 li[data-baseweb="option"]:hover,
 li[data-baseweb="option"][aria-selected="true"] {{
     background:{LIGHT_GREEN} !important;
@@ -201,53 +222,66 @@ li[data-baseweb="option"][aria-selected="true"] {{
     font-weight:900 !important;
 }}
 </style>
-""", unsafe_allow_html=True)
-
+""",
+    unsafe_allow_html=True,
+)
 
 # ---------------- LOAD DATA ----------------
 df = load_all()
-
 if df.empty:
     st.error("Material files missing.")
     st.stop()
 
-
 # ---------------- HEADER ----------------
 st.markdown("<h1>🔍 Material Viewfinder</h1>", unsafe_allow_html=True)
 
-
 # ---------------- FILTERS ----------------
-c1,c2,c3 = st.columns([1,1,1])
+c1, c2, c3 = st.columns([1, 1, 1])
 
-plant = c1.selectbox("Plant", ["SHJM","MIJM","SGJM","SSKT"])
+plant = c1.selectbox("Plant", ["SHJM", "MIJM", "SGJM", "SSKT"])
 department = c2.selectbox("Department", sorted(df["Department"].unique()))
 machine = c3.selectbox(
     "Machine Type",
-    sorted(df[df["Department"]==department]["Machine Type"].unique())
+    sorted(df[df["Department"] == department]["Machine Type"].unique()),
 )
 
-subset = df[(df["Department"]==department)&(df["Machine Type"]==machine)]
+subset = df[(df["Department"] == department) & (df["Machine Type"] == machine)]
 
-
-# ---------------- SEARCH + CLEAR BUTTON ----------------
-
+# ---------------- SEARCH + CLEAR + RECENT STATE ----------------
 if "query" not in st.session_state:
     st.session_state["query"] = ""
 
 if "trigger_clear" not in st.session_state:
     st.session_state["trigger_clear"] = False
 
+if "recent_searches" not in st.session_state:
+    st.session_state["recent_searches"] = []  # top 5 material codes
+
+
+def add_recent(code: str):
+    """Store last 5 material codes (no duplicates)."""
+    code = code.strip()
+    if not code:
+        return
+
+    recent = st.session_state["recent_searches"]
+    if code in recent:
+        recent.remove(code)
+    recent.insert(0, code)
+    st.session_state["recent_searches"] = recent[:5]
+
+
 if st.session_state["trigger_clear"]:
     st.session_state["query"] = ""
     st.session_state["trigger_clear"] = False
 
-c_search, c_btn, c_clear = st.columns([4,1,1])
+c_search, c_btn, c_clear = st.columns([4, 1, 1])
 
 with c_search:
     q = st.text_input(
         "Search by description or material code",
         key="query",
-        placeholder="e.g., disc, stud, bearing, 13000..."
+        placeholder="e.g., disc, stud, bearing, 13000...",
     )
 
 with c_btn:
@@ -264,51 +298,90 @@ if clear:
     st.session_state["trigger_clear"] = True
     st.rerun()
 
+# ---------------- RECENT SEARCHES DISPLAY ----------------
+if st.session_state["recent_searches"]:
+    st.markdown("### 🕘 Recent Searches")
+    cols_recent = st.columns(len(st.session_state["recent_searches"]))
+    for i, code in enumerate(st.session_state["recent_searches"]):
+        with cols_recent[i]:
+            if st.button(code, key=f"recent_{code}"):
+                st.session_state["query"] = code
+                st.rerun()
 
-# ---------------- SEARCH ENGINE ----------------
-
-filtered = pd.DataFrame()
+# ---------------- SEARCH ENGINE & GLOBAL FALLBACK ----------------
+filtered_subset = pd.DataFrame()
+global_matches = pd.DataFrame()
 suggestions = []
 chosen = None
+status = "idle"  # idle / here / elsewhere / nowhere
 
 if q.strip():
-    filtered = strict_partial_filter(subset, q)
+    filtered_subset = strict_partial_filter(subset, q)
 
-    if filtered.empty:
-        st.error("❌ Material not found")
-    else:
+    if not filtered_subset.empty:
+        status = "here"
         suggestions = [
-            f"【{str(row.get(KEY_MAT,''))}】 {str(row.get(KEY_DESC,''))}"
-            for _, row in filtered.iterrows()
+            f"【{str(row.get(KEY_MAT, ''))}】 {str(row.get(KEY_DESC, ''))}"
+            for _, row in filtered_subset.iterrows()
         ]
         chosen = st.selectbox("Suggestions", suggestions)
+    else:
+        # search ENTIRE DATABASE
+        global_matches = strict_partial_filter(df, q)
 
+        if global_matches.empty:
+            status = "nowhere"
+            st.error("❌ Material not found anywhere in database")
+        else:
+            status = "elsewhere"
+            st.warning(
+                "⚠️ Material not found in selected machine — "
+                "but exists in other Departments / Machines."
+            )
 
-# ---------------- DISPLAY SAP RECORD ----------------
+            gm_clean = clean_display(global_matches)
 
-# Case A: Submit without search → show ALL items of machine
+            def highlight_global(x):
+                return [
+                    f"background-color:{LIGHT_GREEN};"
+                    f"color:{DARK_GREEN};font-weight:bold"
+                ] * len(x)
+
+            st.subheader("🌍 Found in Other Departments / Machines")
+            st.dataframe(
+                gm_clean.style.apply(highlight_global, axis=1),
+                use_container_width=True,
+            )
+
+# ---------------- DISPLAY SAP RECORD (CURRENT MACHINE) ----------------
 if submit and not q.strip():
-    st.subheader("📄 SAP Record — All Materials")
+    # show all materials for that machine
+    st.subheader("📄 SAP Record — All Materials in Selected Machine")
     st.dataframe(clean_display(subset), use_container_width=True)
 
-# Case B: Show all matched rows
-elif not filtered.empty:
-    st.subheader(f"📄 SAP Record — {len(filtered)} Result(s) Found")
-    df_clean = clean_display(filtered)
+elif status == "here" and not filtered_subset.empty:
+    # show only matching materials in selected machine
+    st.subheader(f"📄 SAP Record — {len(filtered_subset)} Result(s) in Selected Machine")
+    df_clean = clean_display(filtered_subset)
 
     def highlight_row(x):
         return [
-            f"background-color:{LIGHT_GREEN};color:{DARK_GREEN};font-weight:bold"
+            f"background-color:{LIGHT_GREEN};"
+            f"color:{DARK_GREEN};font-weight:bold"
         ] * len(x)
 
-    st.dataframe(df_clean.style.apply(highlight_row, axis=1), use_container_width=True)
+    st.dataframe(
+        df_clean.style.apply(highlight_row, axis=1),
+        use_container_width=True,
+    )
 
-# Case C: Show selected code label
-if chosen and not filtered.empty:
-    code = chosen.split("】")[0].replace("【","").strip()
+# ---------------- SELECTED MATERIAL (AND RECENT STORE) ----------------
+if chosen and status == "here" and not filtered_subset.empty:
+    code = chosen.split("】")[0].replace("【", "").strip()
     if code:
+        add_recent(code)
         st.write("")
         st.markdown(
             f"<h3 style='color:{BLUE};'>Selected: {code}</h3>",
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
