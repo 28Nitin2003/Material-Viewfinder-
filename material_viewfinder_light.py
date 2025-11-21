@@ -482,7 +482,7 @@ else:
             f"(Dept: {item['Department']}, Machine: {item['Machine Type']}, Qty: {item['Quantity']})"
         )
 
-    body_lines += ["", "Regards,", "Shekhar"]
+    body_lines += ["", "Regards,", "Material Viewfinder Bot"]
     body = "\n".join(body_lines)
 
     st.text_area("Email Preview", body, height=200)
@@ -509,3 +509,4 @@ else:
                 """,
                 unsafe_allow_html=True,
             )
+
