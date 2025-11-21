@@ -1,5 +1,5 @@
 # ==========================================================
-# MATERIAL VIEWFINDER — STABLE SELECT + CART + GMAIL + UI TWEAKS
+# MATERIAL VIEWFINDER — FINAL (AUTO-RESET SELECTION + EDITABLE CART)
 # ==========================================================
 
 import os
@@ -169,7 +169,6 @@ st.set_page_config(page_title="Material Viewfinder", layout="wide")
 st.markdown(
     f"""
 <style>
-
 * {{ border-radius: 6px !important; }}
 
 body, .stApp {{
@@ -177,20 +176,20 @@ body, .stApp {{
     font-family:'Inter', sans-serif !important;
 }}
 
-/* MAIN BUTTON STYLE (Submit, Clear, others) */
+/* MAIN BUTTON STYLE */
 .stButton>button {{
     background:{BLUE} !important;
     color:white !important;
     font-weight:700 !important;
-    padding:6px 18px !important;   /* SMALLER BUTTONS */
+    padding:6px 18px !important;
     font-size:14px !important;
     border:none !important;
 }}
 
-/* RECENT SEARCH BUTTONS (inside columns row) */
+/* RECENT SEARCH BUTTONS */
 div[data-testid="column"] .stButton>button {{
     background:{BLUE} !important;
-    padding:4px 14px !important;   /* SMALLER RECENT BUTTON */
+    padding:4px 14px !important;
     font-size:13px !important;
     font-weight:600 !important;
 }}
@@ -210,18 +209,20 @@ div[data-testid="column"] .stButton>button {{
     color:{DARK_BLUE} !important;
 }}
 
-/* TABLE HEADER */
-[data-testid="dataframe"] th {{
-    background:{DARK_GREEN} !important;
-    color:white !important;
-    font-weight:900 !important;
+/* TABLE HEADERS - BOLD */
+[data-testid="stDataEditor"] thead th,
+[data-testid="stDataEditor"] div[data-testid="column_header_content"] {{
+    background-color: {DARK_GREEN} !important;
+    color: white !important;
+    font-size: 16px !important;
+    font-weight: 900 !important; 
+    font-family: 'Inter', sans-serif !important;
 }}
 
 h1,h2,h3 {{
     color:{DARK_BLUE} !important;
     font-weight:900 !important;
 }}
-
 </style>
 """,
     unsafe_allow_html=True,
@@ -232,34 +233,38 @@ h1,h2,h3 {{
 # ==========================================================
 if "query" not in st.session_state:
     st.session_state["query"] = ""
-
 if "clear_trigger" not in st.session_state:
     st.session_state["clear_trigger"] = False
-
+if "trigger_search" not in st.session_state:
+    st.session_state["trigger_search"] = False
 if "recent_searches" not in st.session_state:
     st.session_state["recent_searches"] = []
-
 if "cart" not in st.session_state:
     st.session_state["cart"] = {}
 
-# base table (without Select/Quantity) + label
+# Base table logic
 if "table_df_base" not in st.session_state:
     st.session_state["table_df_base"] = None
 if "table_label" not in st.session_state:
     st.session_state["table_label"] = ""
 
-# track current filter to clear table when dept/machine changes
+# Current filter logic
 if "current_dept" not in st.session_state:
     st.session_state["current_dept"] = None
 if "current_machine" not in st.session_state:
     st.session_state["current_machine"] = None
 
-# apply clear BEFORE creating text input
+# TABLE RESET KEY (New for auto-clearing selections)
+if "editor_key" not in st.session_state:
+    st.session_state["editor_key"] = 0
+
+# Apply clear logic
 if st.session_state["clear_trigger"]:
     st.session_state["query"] = ""
     st.session_state["table_df_base"] = None
     st.session_state["table_label"] = ""
     st.session_state["clear_trigger"] = False
+    st.session_state["editor_key"] += 1  # Ensure clean slate
 
 # ==========================================================
 # LOAD DATA
@@ -270,13 +275,10 @@ if df.empty:
     st.stop()
 
 # ==========================================================
-# HEADER
+# HEADER & FILTERS
 # ==========================================================
 st.markdown("<h1>🔍 Material Viewfinder</h1>", unsafe_allow_html=True)
 
-# ==========================================================
-# FILTERS
-# ==========================================================
 c1, c2, c3 = st.columns(3)
 plant = c1.selectbox("Plant", ["SHJM", "MIJM", "SGJM", "SSKT"])
 department = c2.selectbox("Department", sorted(df["Department"].unique()))
@@ -287,7 +289,7 @@ machine = c3.selectbox(
 
 subset = df[(df["Department"] == department) & (df["Machine Type"] == machine)]
 
-# if department/machine changed, clear table
+# Clear table if filters change
 if (
     st.session_state["current_dept"] != department
     or st.session_state["current_machine"] != machine
@@ -296,9 +298,10 @@ if (
     st.session_state["table_label"] = ""
     st.session_state["current_dept"] = department
     st.session_state["current_machine"] = machine
+    st.session_state["editor_key"] += 1  # Force reset table
 
 # ==========================================================
-# SEARCH BAR + CLEAR (SMALL, ALIGNED BUTTONS)
+# SEARCH BAR
 # ==========================================================
 c_s, c_btn, c_clr = st.columns([5, 1, 1])
 
@@ -310,7 +313,7 @@ with c_s:
     )
 
 with c_btn:
-    st.write("")  # spacing
+    st.write("")
     submit = st.button("Submit")
 
 with c_clr:
@@ -321,39 +324,42 @@ if clear:
     st.session_state["clear_trigger"] = True
     st.session_state["table_df_base"] = None
     st.session_state["table_label"] = ""
+    st.session_state["editor_key"] += 1
     st.rerun()
 
 # ==========================================================
-# RECENT SEARCHES
+# RECENT SEARCHES (CALLBACK METHOD)
 # ==========================================================
+def on_recent_click(search_text):
+    st.session_state["query"] = search_text
+    st.session_state["trigger_search"] = True
+
 if st.session_state["recent_searches"]:
     st.markdown("### 🕘 Recent Searches")
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            if st.button(item, key=f"recent_{i}"):
-                st.session_state["query"] = item
-                st.session_state["table_df_base"] = None  # force new table
-                st.session_state["table_label"] = ""
-                st.rerun()
+            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,))
 
 # ==========================================================
-# ON SUBMIT: DECIDE WHICH TABLE TO SHOW
+# SEARCH LOGIC
 # ==========================================================
-if submit:
-    q_stripped = q.strip()
+should_search = submit or st.session_state.get("trigger_search", False)
 
-    # Case 1: empty query → show ALL materials in selected machine
+if should_search:
+    st.session_state["trigger_search"] = False
+    st.session_state["editor_key"] += 1  # Reset selection on new search
+
+    q_stripped = st.session_state["query"].strip()
+
     if not q_stripped:
         base = clean_display(subset).reset_index(drop=True)
         st.session_state["table_df_base"] = base
         st.session_state["table_label"] = f"📄 SAP Record — All materials in {machine}"
-
     else:
-        # non-empty query → try local (this machine)
         filtered_local = hybrid_multi_search(subset, q_stripped)
 
-        # update recent searches (only for non-empty query)
+        # update recent
         recent = st.session_state["recent_searches"]
         if q_stripped in recent:
             recent.remove(q_stripped)
@@ -367,7 +373,6 @@ if submit:
                 f"📄 SAP Record — {len(base)} result(s) in {machine}"
             )
         else:
-            # nothing in this machine → check global
             filtered_global = hybrid_multi_search(df, q_stripped)
             st.session_state["table_df_base"] = None
             st.session_state["table_label"] = ""
@@ -379,7 +384,7 @@ if submit:
                 st.dataframe(clean_display(filtered_global), use_container_width=True)
 
 # ==========================================================
-# SHOW SAP TABLE WITH STABLE SELECTION
+# SHOW SAP TABLE (WITH AUTO RESET)
 # ==========================================================
 base = st.session_state["table_df_base"]
 label = st.session_state["table_label"]
@@ -389,28 +394,26 @@ if base is not None and not base.empty:
 
     display_df = base.copy().reset_index(drop=True)
 
-    # add selection + quantity columns
+    # Pre-fill Select and Quantity
     if "Select" not in display_df.columns:
         display_df.insert(0, "Select", False)
     if "Quantity" not in display_df.columns:
         display_df.insert(1, "Quantity", 1)
 
+    # Use dynamic key for auto-resetting checkboxes
+    unique_key = f"sap_table_editor_{st.session_state['editor_key']}"
+
     edited = st.data_editor(
         display_df,
-        key="sap_table_editor",
+        key=unique_key,
         hide_index=True,
         use_container_width=True,
         num_rows="fixed",
         column_config={
             "Select": st.column_config.CheckboxColumn("Select"),
-            "Quantity": st.column_config.NumberColumn(
-                "Quantity", min_value=1, step=1
-            ),
+            "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
         },
     )
-
-    # IMPORTANT: we DO NOT overwrite table_df_base with edited
-    # (so selections are only per-run, as you wanted in option B).
 
     if st.button("Add Selected to Cart"):
         selected_rows = edited[edited["Select"] == True]
@@ -419,7 +422,7 @@ if base is not None and not base.empty:
             st.warning("No items selected.")
         else:
             cart = st.session_state["cart"]
-
+            count = 0
             for _, row in selected_rows.iterrows():
                 code = str(row.get(KEY_MAT, "")).strip()
                 if not code:
@@ -427,11 +430,11 @@ if base is not None and not base.empty:
 
                 try:
                     qty = int(row.get("Quantity", 1))
-                    if qty < 1:
-                        qty = 1
-                except Exception:
+                    if qty < 1: qty = 1
+                except:
                     qty = 1
 
+                # Add to cart dictionary
                 cart[code] = {
                     "Material": code,
                     "Description": row.get(KEY_DESC, ""),
@@ -439,28 +442,62 @@ if base is not None and not base.empty:
                     "Machine Type": row.get("Machine Type", ""),
                     "Quantity": qty,
                 }
+                count += 1
 
-            st.session_state["cart"] = cart
-            st.success(f"✔ Added {len(selected_rows)} item(s) to cart.")
+            if count > 0:
+                st.session_state["cart"] = cart
+                st.success(f"✔ Added {count} item(s) to cart.")
+                # Increment key to force table reset (uncheck boxes)
+                st.session_state["editor_key"] += 1
+                st.rerun()
 
 # ==========================================================
-# CART
+# CART (NOW EDITABLE)
 # ==========================================================
 st.write("---")
-st.subheader("🛒 Cart")
+st.subheader("🛒 Cart (Edit Quantity Here)")
 
 if not st.session_state["cart"]:
     st.info("Cart is empty.")
 else:
+    # Convert cart dict to DataFrame
     cart_df = pd.DataFrame(st.session_state["cart"].values())
-    st.dataframe(cart_df, use_container_width=True)
+    
+    # Ensure Quantity is first for better UX
+    cols = ["Quantity", "Material", "Description", "Department", "Machine Type"]
+    # Filter to exist columns only
+    final_cols = [c for c in cols if c in cart_df.columns]
+    cart_df = cart_df[final_cols]
+
+    # EDITABLE CART TABLE
+    edited_cart = st.data_editor(
+        cart_df,
+        key="cart_editor",
+        hide_index=True,
+        use_container_width=True,
+        num_rows="dynamic", # Allows deleting rows if needed
+        disabled=["Material", "Description", "Department", "Machine Type"], # Lock details, open Quantity
+        column_config={
+            "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1, required=True)
+        }
+    )
+    
+    # SYNC CART CHANGES BACK TO STATE
+    # If user edits quantity in this table, update the session state dictionary
+    if not edited_cart.equals(cart_df):
+        new_cart = {}
+        for _, row in edited_cart.iterrows():
+             code = str(row["Material"])
+             new_cart[code] = row.to_dict()
+        st.session_state["cart"] = new_cart
+
 
     if st.button("Clear Cart"):
         st.session_state["cart"] = {}
         st.rerun()
 
     # ======================================================
-    # EMAIL VIA GMAIL (NEW TAB)
+    # EMAIL
     # ======================================================
     st.write("---")
     st.subheader("✉ Send Materials via Gmail")
@@ -476,6 +513,7 @@ else:
         "",
     ]
 
+    # Read from the *latest* cart state (including edits)
     for item in st.session_state["cart"].values():
         body_lines.append(
             f"- {item['Material']} — {item['Description']} "
@@ -500,7 +538,6 @@ else:
                 f"&to={to_encoded}&su={subject_encoded}&body={body_encoded}"
             )
 
-            # Open Gmail in a new tab without closing Streamlit
             st.markdown(
                 f"""
                 <script>
@@ -509,4 +546,3 @@ else:
                 """,
                 unsafe_allow_html=True,
             )
-
