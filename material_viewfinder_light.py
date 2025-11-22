@@ -1,7 +1,3 @@
-# ==========================================================
-# MATERIAL VIEWFINDER — FINAL AESTHETIC BUILD (BUTTON FIX + VISIBILITY)
-# ==========================================================
-
 import os
 import re
 import urllib.parse
@@ -24,7 +20,6 @@ KEY_DESC = "Material Proposed Description"
 # --- ENHANCED COLORS ---
 BLUE = "#1F7A8C"        # Richer Teal/Corporate Blue
 DARK_BLUE = "#003566"   # Deep Blue for Title and quantity text for visibility
-# LIGHT_BLUE_TEXT = "#E0F2FE" # Removed, as we'll use DARK_BLUE for quantity text
 DARK_GREEN = "#006D5B"  # Professional Dark Green for Headers
 RED_DELETE = "#EF4444"
 TEXT_DARK = "#1E293B"   # Very dark gray/almost black for all general text
@@ -64,22 +59,31 @@ def extract_tables(df: pd.DataFrame):
 @st.cache_data(show_spinner=True)
 def load_all():
     rows = []
+    # NOTE: In a real environment, the underlying Excel files must be present 
+    # in the same directory for this application to function.
     base = os.path.dirname(os.path.abspath(__file__))
 
     for dept, fname in FILES.items():
         path = os.path.join(base, fname)
         if not os.path.exists(path):
+            # In a deployed environment, you might log this or handle it differently
+            # For this context, we just skip missing files
             continue
 
-        xls = pd.ExcelFile(path)
-        for sheet in xls.sheet_names:
-            df = pd.read_excel(path, sheet_name=sheet, header=None)
-            for tbl in extract_tables(df):
-                T = tbl.copy()
-                T["Department"] = dept
-                machine = "Winding" if sheet.lower() == "sheet1" else sheet
-                T["Machine Type"] = machine
-                rows.extend(T.to_dict(orient="records"))
+        try:
+            xls = pd.ExcelFile(path)
+            for sheet in xls.sheet_names:
+                df = pd.read_excel(path, sheet_name=sheet, header=None)
+                for tbl in extract_tables(df):
+                    T = tbl.copy()
+                    T["Department"] = dept
+                    machine = "Winding" if sheet.lower() == "sheet1" else sheet
+                    T["Machine Type"] = machine
+                    rows.extend(T.to_dict(orient="records"))
+        except Exception as e:
+            # Handle potential errors during file reading/parsing
+            st.error(f"Error processing file {fname}, sheet {sheet}: {e}")
+            continue
 
     if not rows:
         return pd.DataFrame()
@@ -112,6 +116,7 @@ def parse_keywords(q: str):
     q = q.lower().strip()
     if not q:
         return []
+    # Split by comma, space, semicolon, or pipe
     parts = re.split(r"[,\s;|]+", q)
     seen = set()
     out = []
@@ -137,19 +142,25 @@ def hybrid_multi_search(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
         .str.lower()
     )
 
+    # --- AND Logic (Must contain ALL keywords) ---
     masks_and = [combined.str.contains(k) for k in keywords]
     mask_and = np.logical_and.reduce(masks_and)
+    
+    # --- OR Logic (Must contain AT LEAST ONE keyword) ---
     masks_or = [combined.str.contains(k) for k in keywords]
     mask_or = np.logical_or.reduce(masks_or)
 
     if mask_and.any():
+        # If all keywords are found together, use that filtered subset
         cand = df[mask_and].copy()
     else:
+        # Otherwise, use the results that contain at least one keyword
         cand = df[mask_or].copy()
 
     if cand.empty:
         return cand
 
+    # --- Scoring/Sorting Logic (Prioritize starting matches) ---
     first = keywords[0]
     desc = cand[KEY_DESC].fillna("").astype(str).str.lower()
     starts = desc.str.startswith(first)
@@ -196,10 +207,17 @@ p,
     color: {TEXT_DARK} !important; 
 }}
 
-/* Ensure button text remains white for main app buttons */
+/* Ensure button text remains white for main app buttons (secondary) */
 button[kind="secondary"] p {{
     color: white !important;
 }}
+
+/* Ensure button text remains RED for destructive actions (primary) */
+/* This ensures the 'Clear Entire Cart' text is red on white background */
+button[kind="primary"] p {{
+    color: {RED_DELETE} !important;
+}}
+
 
 /* Ensure all input/select box labels are visible against the main background */
 .stSelectbox label p,
@@ -233,7 +251,7 @@ button[kind="secondary"]:focus, button[kind="secondary"]:active {{
 }}
 
 /* ============================================================ */
-/* 2. DELETE BUTTON (Clean Red Icon)                            */
+/* 2. DELETE BUTTON (Clean Red Icon & Clear All Cart Button)    */
 /* ============================================================ */
 button[kind="primary"] {{
     background-color: transparent !important;
@@ -255,6 +273,22 @@ button[kind="primary"]:focus {{
     box-shadow: none !important;
     border-color: {RED_DELETE} !important;
 }}
+/* Override the delete icon button to ensure height is minimal for the trashcan */
+button[kind="primary"].stButton {{
+    padding: 0;
+}}
+/* Specifically target the 'Clear Entire Cart' button which is type="primary" 
+to give it more height and make it look like a regular button */
+button[kind="primary"].stButton:not(.stColumns > div:nth-child(4) button) {{
+    height: auto !important;
+    padding: 0.25rem 0.75rem !important;
+    transform: none; /* remove scale up on hover unless it's the trashcan */
+}}
+button[kind="primary"].stButton:not(.stColumns > div:nth-child(4) button):hover {{
+    transform: translateY(-2px); /* Add slight lift on hover for the full button */
+    color: white !important;
+}}
+
 
 /* ============================================================ */
 /* 3. INPUTS & DROPDOWNS (Light Background, Blue Borders)       */
@@ -351,6 +385,7 @@ div[data-testid="stColumn"] .stText {{
     background-color: transparent !important; /* Keep input background transparent */
     border: 1px solid {DARK_BLUE} !important; /* Subtle border for definition */
     box-shadow: none !important;
+    text-align: center; /* Center the quantity number */
 }}
 /* Adjust buttons inside number input (plus/minus) */
 .stNumberInput button {{
@@ -436,7 +471,7 @@ if st.session_state["clear_trigger"]:
 # ==========================================================
 df = load_all()
 if df.empty:
-    st.error("❌ Excel material files missing.")
+    st.error("❌ Material data could not be loaded. Ensure master files are present.")
     st.stop()
 
 # ==========================================================
@@ -462,9 +497,13 @@ st.markdown(
 c1, c2, c3 = st.columns(3)
 plant = c1.selectbox("Plant", ["SHJM", "MIJM", "SGJM", "SSKT"])
 department = c2.selectbox("Department", sorted(df["Department"].unique()))
+# Ensure machine type selection is filtered based on the selected department
+machine_options = sorted(df[df["Department"] == department]["Machine Type"].unique())
+if not machine_options:
+    machine_options = ["N/A"]
 machine = c3.selectbox(
     "Machine Type",
-    sorted(df[df["Department"] == department]["Machine Type"].unique()),
+    machine_options,
 )
 
 subset = df[(df["Department"] == department) & (df["Machine Type"] == machine)]
@@ -494,9 +533,11 @@ with c_s:
     )
 
 with c_btn:
-    submit = st.button("Submit", use_container_width=True)
+    # Uses secondary/blue styling
+    submit = st.button("Submit", use_container_width=True, key="submit_btn")
 
 with c_clr:
+    # Uses secondary/blue styling
     clear = st.button("Clear", key="clear_btn", use_container_width=True)
 
 if clear:
@@ -510,7 +551,9 @@ if clear:
 # RECENT SEARCHES
 # ==========================================================
 def on_recent_click(search_text):
+    # Set the query text
     st.session_state["query"] = search_text
+    # Flag to trigger the search logic
     st.session_state["trigger_search"] = True
 
 if st.session_state["recent_searches"]:
@@ -518,8 +561,8 @@ if st.session_state["recent_searches"]:
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            # These buttons are secondary, so they should now pick up the blue styling
-            st.button(item, key=f"recent_{i}", on_recent_click, args=(item,), use_container_width=True)
+            # **CORRECTED LINE:** Passing on_recent_click as a keyword argument (on_click)
+            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,), use_container_width=True)
 
 # ==========================================================
 # SEARCH LOGIC
@@ -527,18 +570,22 @@ if st.session_state["recent_searches"]:
 should_search = submit or st.session_state.get("trigger_search", False)
 
 if should_search:
+    # Immediately reset the flag and increment key to force table reset
     st.session_state["trigger_search"] = False
     st.session_state["editor_key"] += 1
 
     q_stripped = st.session_state["query"].strip()
 
     if not q_stripped:
+        # Show all if query is empty
         base = clean_display(subset).reset_index(drop=True)
         st.session_state["table_df_base"] = base
         st.session_state["table_label"] = f"📄 SAP Record — All materials in {machine}"
     else:
+        # Perform search within the currently selected machine/dept subset
         filtered_local = hybrid_multi_search(subset, q_stripped)
 
+        # Update Recent Searches (LIFO, max 5)
         recent = st.session_state["recent_searches"]
         if q_stripped in recent:
             recent.remove(q_stripped)
@@ -546,12 +593,14 @@ if should_search:
         st.session_state["recent_searches"] = recent[:5]
 
         if not filtered_local.empty:
+            # Results found in local subset
             base = clean_display(filtered_local).reset_index(drop=True)
             st.session_state["table_df_base"] = base
             st.session_state["table_label"] = (
                 f"📄 SAP Record — {len(base)} result(s) in {machine}"
             )
         else:
+            # No results locally, check globally
             filtered_global = hybrid_multi_search(df, q_stripped)
             st.session_state["table_df_base"] = None
             st.session_state["table_label"] = ""
@@ -559,8 +608,15 @@ if should_search:
             if filtered_global.empty:
                 st.error("❌ Material not found anywhere.")
             else:
-                st.warning("⚠ Material not found in this machine, but found elsewhere:")
+                # Results found globally but not locally
+                st.warning(f"⚠ Material not found in **{department} / {machine}**, but found elsewhere:")
+                # Use a standard dataframe for the global results that won't interfere with the main data_editor
                 st.dataframe(clean_display(filtered_global), use_container_width=True)
+    
+    # Rerun to apply search results immediately if search was triggered by recent button
+    if st.session_state["query"] == q_stripped and st.session_state["trigger_search"] == False:
+        # Only rerun if the query was set by a button click and not manually typed (which reruns on submit)
+        st.rerun()
 
 # ==========================================================
 # SHOW SAP TABLE (AUTO RESET)
@@ -572,6 +628,7 @@ if base is not None and not base.empty:
     st.subheader(label)
 
     display_df = base.copy().reset_index(drop=True)
+    # Ensure mandatory columns for data editor selection are present
     if "Select" not in display_df.columns:
         display_df.insert(0, "Select", False)
     if "Quantity" not in display_df.columns:
@@ -591,7 +648,8 @@ if base is not None and not base.empty:
         },
     )
 
-    if st.button("Add Selected to Cart", use_container_width=True):
+    # Uses secondary/blue styling
+    if st.button("Add Selected to Cart", use_container_width=True, key="add_to_cart_btn"):
         selected_rows = edited[edited["Select"] == True]
 
         if selected_rows.empty:
@@ -600,8 +658,9 @@ if base is not None and not base.empty:
             cart = st.session_state["cart"]
             count = 0
             for _, row in selected_rows.iterrows():
-                code = str(row.get(KEY_MAT, "")).strip()
-                if not code:
+                # Use str() and strip() for robustness
+                code = str(row.get(KEY_MAT, "")).strip() 
+                if not code or code == "None":
                     continue
 
                 try:
@@ -610,6 +669,7 @@ if base is not None and not base.empty:
                 except:
                     qty = 1
 
+                # Update or insert into cart
                 if code in cart:
                     cart[code]["Quantity"] += qty
                 else:
@@ -625,6 +685,7 @@ if base is not None and not base.empty:
             if count > 0:
                 st.session_state["cart"] = cart
                 st.success(f"✔ Added {count} item(s) to cart.")
+                # Increment editor key to clear selections in the data editor
                 st.session_state["editor_key"] += 1
                 st.rerun()
 
@@ -637,8 +698,8 @@ st.write("---")
 if st.session_state["undo_item"]:
     c_undo, _ = st.columns([2, 5])
     with c_undo:
-        # Standard Blue Button
-        if st.button("↩ Undo Delete", use_container_width=True):
+        # Standard Blue Button (secondary)
+        if st.button("↩ Undo Delete", use_container_width=True, key="undo_btn"):
             restored = st.session_state["undo_item"]
             st.session_state["cart"][restored["Material"]] = restored
             st.session_state["undo_item"] = None
@@ -662,7 +723,7 @@ else:
     # 3. ITERATE ITEMS
     current_cart = st.session_state["cart"]
     
-    # List conversion for safe iteration
+    # List conversion for safe iteration 
     for code, item in list(current_cart.items()):
         
         # Adjusted column widths for tighter Qty
@@ -670,16 +731,24 @@ else:
         
         # COLUMN 1: EDITABLE QUANTITY
         with c1:
+            # Use on_change to trigger save and rerun
+            def update_qty(material_code):
+                # The state value is updated automatically by st.number_input
+                new_val = st.session_state[f"qty_{material_code}"]
+                st.session_state["cart"][material_code]["Quantity"] = new_val
+                # Rerunning is necessary to update the cart display fully
+                st.rerun()
+
             new_qty = st.number_input(
                 "Qty", 
                 value=int(item["Quantity"]), 
                 min_value=1, 
                 step=1, 
                 key=f"qty_{code}",
-                label_visibility="collapsed"
+                label_visibility="collapsed",
+                on_change=update_qty, # Call update function
+                args=(code,)
             )
-            if new_qty != item["Quantity"]:
-                st.session_state["cart"][code]["Quantity"] = new_qty
                 
         # COLUMN 2: DESCRIPTION & CODE
         with c2:
@@ -700,11 +769,12 @@ else:
                 del st.session_state["cart"][code]
                 st.rerun()
         
-        # NOTE: The custom CSS handles the separator line now, making the cart cleaner
+        # Separator line for cart item
         st.markdown("<hr>", unsafe_allow_html=True) 
 
     # CLEAR ALL BUTTON
-    if st.button("Clear Entire Cart"):
+    # Uses type="primary" to apply the red/destructive styling defined in CSS
+    if st.button("Clear Entire Cart", type="primary", key="clear_all_cart_btn"):
         st.session_state["cart"] = {}
         st.session_state["undo_item"] = None
         st.rerun()
@@ -725,6 +795,9 @@ body_lines = [
     "",
 ]
 
+if not st.session_state["cart"]:
+    body_lines.append("The cart is currently empty. Please add items before sending.")
+
 for item in st.session_state["cart"].values():
     body_lines.append(
         f"- {item['Material']} — {item['Description']} "
@@ -736,10 +809,14 @@ body = "\n".join(body_lines)
 
 st.text_area("Email Preview", body, height=200)
 
-if st.button("Send Email"):
+# Uses secondary/blue styling
+if st.button("Send Email", key="send_email_btn"):
     if not to_email.strip():
         st.warning("Please enter receiver email.")
+    elif not st.session_state["cart"]:
+        st.warning("Cart is empty. Please add materials.")
     else:
+        # URL encoding for safe email link construction
         subject_encoded = urllib.parse.quote(subject)
         body_encoded = urllib.parse.quote(body)
         to_encoded = urllib.parse.quote(to_email)
@@ -752,8 +829,10 @@ if st.button("Send Email"):
         st.markdown(
             f"""
             <script>
+                // Use window.open to launch the Gmail link in a new tab
                 window.open("{gmail_url}", "_blank");
             </script>
             """,
             unsafe_allow_html=True,
         )
+        st.success("✔ Opening Gmail with pre-filled email in a new window.")
