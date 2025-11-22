@@ -346,7 +346,7 @@ button[kind="primary"].stButton:not(.stColumns > div:nth-child(4) button):hover 
 header {{visibility: hidden;}}
 
 /* ============================================================ */
-/* 5. CART ITEM STYLING - ULTRA TIGHT PADDING (Final Compression)*/
+/* 5. CART ITEM STYLING - ULTRA TIGHT PADDING */
 /* ============================================================ */
 
 /* Reduce vertical padding on all blocks within the st.columns for the cart */
@@ -529,27 +529,30 @@ if (
     st.session_state["editor_key"] += 1
 
 # ==========================================================
-# SEARCH BAR
+# SEARCH BAR (Modified to use st.form for Enter key support)
 # ==========================================================
-c_s, c_btn, c_clr = st.columns([5, 1, 1], vertical_alignment="bottom")
+# Use st.form to capture the Enter key press from the text input
+with st.form(key='search_form'):
+    c_s, c_btn, c_clr = st.columns([5, 1, 1], vertical_alignment="bottom")
 
-with c_s:
-    q = st.text_input(
-        "Search",
-        key="query",
-        placeholder="Search by description or material code (e.g. bearing, 13000...)",
-        label_visibility="visible" 
-    )
+    with c_s:
+        q = st.text_input(
+            "Search",
+            key="query",
+            placeholder="Search by description or material code (e.g. bearing, 13000...)",
+            label_visibility="visible" 
+        )
 
-with c_btn:
-    # Uses secondary/blue styling
-    submit = st.button("Submit", use_container_width=True, key="submit_btn")
+    with c_btn:
+        # st.form_submit_button handles Enter key and form submission
+        submitted = st.form_submit_button("Submit", use_container_width=True, type="secondary")
 
-with c_clr:
-    # Uses secondary/blue styling
-    clear = st.button("Clear", key="clear_btn", use_container_width=True)
+    with c_clr:
+        # Clear button remains a regular button (its action is handled below)
+        clear_clicked = st.button("Clear", key="clear_btn", use_container_width=True)
 
-if clear:
+# Handle the clear button click (must be outside the `with st.form` block if it causes rerun)
+if clear_clicked:
     st.session_state["clear_trigger"] = True
     st.session_state["table_df_base"] = None
     st.session_state["table_label"] = ""
@@ -567,17 +570,18 @@ def on_recent_click(search_text):
 
 if st.session_state["recent_searches"]:
     st.markdown("### 🕘 Recent")
-    # Use a flexible layout for recent searches
+    # Use columns for a flexible layout
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            # **FIXED:** Removed use_container_width=True to make buttons width-fit-content
+            # Removed use_container_width=True to ensure compact button size
             st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,))
 
 # ==========================================================
 # SEARCH LOGIC
 # ==========================================================
-should_search = submit or st.session_state.get("trigger_search", False)
+# The search is triggered by form submission (Enter or Submit button) OR a Recent Search click
+should_search = submitted or st.session_state.get("trigger_search", False)
 
 if should_search:
     # Immediately reset the flag and increment key to force table reset
@@ -624,8 +628,8 @@ if should_search:
                 st.dataframe(clean_display(filtered_global), use_container_width=True)
     
     # Rerun to apply search results immediately if search was triggered by recent button
-    if st.session_state["query"] == q_stripped and st.session_state["trigger_search"] == False:
-        # Only rerun if the query was set by a button click and not manually typed (which reruns on submit)
+    if submitted or st.session_state["query"] == q_stripped and st.session_state["trigger_search"] == False:
+        # Rerun is necessary to force the table update outside the form submission state
         st.rerun()
 
 # ==========================================================
