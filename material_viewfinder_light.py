@@ -186,7 +186,7 @@ st.markdown(
 * {{ border-radius: 8px !important; }}
 
 /* ============================================================ */
-/* 0. DARK MODE FIX: Force Light Theme & Text Visibility        */
+/* 0. DARK MODE FIX: Force Light Theme & Text Visibility        */
 /* ============================================================ */
 /* Force white background globally */
 .stApp {{
@@ -251,7 +251,7 @@ button[kind="secondary"]:focus, button[kind="secondary"]:active {{
 }}
 
 /* ============================================================ */
-/* 2. DELETE BUTTON (Clean Red Icon & Clear All Cart Button)    */
+/* 2. DELETE BUTTON (Clean Red Icon & Clear All Cart Button)    */
 /* ============================================================ */
 button[kind="primary"] {{
     background-color: transparent !important;
@@ -291,7 +291,7 @@ button[kind="primary"].stButton:not(.stColumns > div:nth-child(4) button):hover 
 
 
 /* ============================================================ */
-/* 3. INPUTS & DROPDOWNS (Light Background, Blue Borders)       */
+/* 3. INPUTS & DROPDOWNS (Light Background, Blue Borders)       */
 /* ============================================================ */
 
 /* Text Input Styling (Search Box) */
@@ -324,7 +324,7 @@ button[kind="primary"].stButton:not(.stColumns > div:nth-child(4) button):hover 
 
 
 /* ============================================================ */
-/* 4. TABLE STYLING (SAP Record)                                */
+/* 4. TABLE STYLING (SAP Record)                                */
 /* ============================================================ */
 [data-testid="stDataEditor"] {{
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
@@ -564,8 +564,8 @@ if st.session_state["recent_searches"]:
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            # **CORRECTED LINE:** Passing on_recent_click as a keyword argument (on_click)
-            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,), use_container_width=True)
+            # FIX: Removed use_container_width=True to prevent the button from stretching.
+            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,))
 
 # ==========================================================
 # SEARCH LOGIC
