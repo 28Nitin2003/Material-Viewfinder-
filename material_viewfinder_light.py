@@ -23,8 +23,8 @@ KEY_DESC = "Material Proposed Description"
 
 # --- ENHANCED COLORS ---
 BLUE = "#1F7A8C"        # Richer Teal/Corporate Blue
-DARK_BLUE = "#003566"   # Deep Blue for Title
-LIGHT_BLUE_TEXT = "#E0F2FE" # Very light blue for high visibility
+DARK_BLUE = "#003566"   # Deep Blue for Title and quantity text for visibility
+# LIGHT_BLUE_TEXT = "#E0F2FE" # Removed, as we'll use DARK_BLUE for quantity text
 DARK_GREEN = "#006D5B"  # Professional Dark Green for Headers
 RED_DELETE = "#EF4444"
 TEXT_DARK = "#1E293B"   # Very dark gray/almost black for all general text
@@ -196,8 +196,8 @@ p,
     color: {TEXT_DARK} !important; 
 }}
 
-/* Ensure button text remains white */
-button p {{
+/* Ensure button text remains white for main app buttons */
+button[kind="secondary"] p {{
     color: white !important;
 }}
 
@@ -214,22 +214,19 @@ button p {{
 /* ============================================================ */
 button[kind="secondary"] {{
     background-color: {BLUE} !important;
-    color: white !important; /* Ensure white text */
     border: none !important;
     font-weight: 700 !important;
-    padding: 0.5rem 1rem !important;
+    padding: 0.25rem 0.75rem !important; /* Adjusted padding for smaller recent search buttons */
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
     transition: all 0.2s ease;
 }}
 button[kind="secondary"]:hover {{
     background-color: {DARK_BLUE} !important;
-    color: white !important;
     transform: translateY(-2px); 
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }}
 button[kind="secondary"]:focus, button[kind="secondary"]:active {{
     background-color: {DARK_BLUE} !important;
-    color: white !important;
     outline: none !important;
     box-shadow: none !important;
     transform: translateY(0);
@@ -350,8 +347,8 @@ div[data-testid="stColumn"] .stText {{
     padding-top: 4px !important;
     padding-bottom: 4px !important;
     font-size: 0.875rem;
-    color: {LIGHT_BLUE_TEXT} !important; /* FIX: Set text color to light blue for visibility */
-    background-color: transparent !important; /* FIX: Keep input background transparent */
+    color: {DARK_BLUE} !important; /* FIX: Changed to DARK_BLUE for visibility on light backgrounds */
+    background-color: transparent !important; /* Keep input background transparent */
     border: 1px solid {DARK_BLUE} !important; /* Subtle border for definition */
     box-shadow: none !important;
 }}
@@ -360,7 +357,7 @@ div[data-testid="stColumn"] .stText {{
     min-height: 28px !important;
     line-height: 1;
     padding: 0 4px; 
-    color: {DARK_BLUE} !important; 
+    color: {DARK_BLUE} !important; /* Ensure plus/minus buttons are dark blue */
     background-color: transparent !important; /* Keep button backgrounds transparent */
     border: none !important; /* Remove individual button borders */
 }}
@@ -522,7 +519,7 @@ if st.session_state["recent_searches"]:
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
             # These buttons are secondary, so they should now pick up the blue styling
-            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,), use_container_width=True)
+            st.button(item, key=f"recent_{i}", on_recent_click, args=(item,), use_container_width=True)
 
 # ==========================================================
 # SEARCH LOGIC
@@ -700,7 +697,7 @@ else:
                 # 1. Save to Undo
                 st.session_state["undo_item"] = st.session_state["cart"][code]
                 # 2. Delete immediately
-                del st.session_session["cart"][code]
+                del st.session_state["cart"][code]
                 st.rerun()
         
         # NOTE: The custom CSS handles the separator line now, making the cart cleaner
