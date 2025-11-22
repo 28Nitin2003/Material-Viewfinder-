@@ -23,6 +23,8 @@ DARK_BLUE = "#003566"   # Deep Blue for Title and quantity text for visibility
 DARK_GREEN = "#006D5B"  # Professional Dark Green for Headers
 RED_DELETE = "#EF4444"
 TEXT_DARK = "#1E293B"   # Very dark gray/almost black for all general text
+HIGHLIGHT_ORANGE = "#F59E0B" # New: Bright Amber/Orange for emphasis
+HIGHLIGHT_ORANGE_HOVER = "#D97706" # Darker Amber for hover effect
 
 # ==========================================================
 # DATA EXTRACTION
@@ -250,6 +252,25 @@ button[kind="secondary"]:focus, button[kind="secondary"]:active {{
 }}
 
 /* ============================================================ */
+/* 1.5. ORANGE SUBMIT BUTTON OVERRIDE */
+/* ============================================================ */
+/* Targeting the second st.columns block's second column button (which is the Submit button) */
+.stColumns:nth-child(2) > div:nth-child(2) button[kind="secondary"] {{
+    background-color: {HIGHLIGHT_ORANGE} !important;
+    box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.4);
+}}
+.stColumns:nth-child(2) > div:nth-child(2) button[kind="secondary"]:hover {{
+    background-color: {HIGHLIGHT_ORANGE_HOVER} !important;
+    transform: translateY(-2px); 
+    box-shadow: 0 10px 15px -3px rgba(245, 158, 11, 0.6);
+}}
+/* Ensure the text is DARK on the orange button */
+.stColumns:nth-child(2) > div:nth-child(2) button[kind="secondary"] p {{
+    color: {TEXT_DARK} !important;
+}}
+
+
+/* ============================================================ */
 /* 2. DELETE BUTTON (Clean Red Icon & Clear All Cart Button)    */
 /* ============================================================ */
 button[kind="primary"] {{
@@ -421,9 +442,14 @@ div[data-testid="stColumn"] .stText {{
     margin-top: 8px !important;
 }}
 
+/* ============================================================ */
+/* 6. EMAIL ANCHOR (New: Styled Link)                           */
+/* ============================================================ */
+/* Inherits styling from the manual markdown below */
+
 </style>
 """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
 # ==========================================================
@@ -535,7 +561,7 @@ with c_s:
     )
 
 with c_btn:
-    # Uses secondary/blue styling
+    # Uses secondary/blue styling by default, overridden by CSS to orange
     submit = st.button("Submit", use_container_width=True, key="submit_btn")
 
 with c_clr:
@@ -617,9 +643,6 @@ if should_search:
     
     # We do NOT need st.rerun() here if triggered by recent search button, 
     # as setting the state value triggers a rerun automatically.
-    # The submission logic relies on the submit button click or the state flag.
-    # The button click already triggers a rerun. The state flag is set in on_recent_click, 
-    # which is already inside a callback, and the callback causes a rerun.
     pass
 
 
@@ -760,8 +783,7 @@ else:
                 # The state value is updated automatically by st.number_input
                 new_val = st.session_state[f"qty_{material_code}"]
                 st.session_state["cart"][material_code]["Quantity"] = new_val
-                # We remove the st.rerun() here to fix the warning.
-                # The app will rerun automatically after this callback finishes.
+                # We removed the st.rerun() here to fix the previous warning.
 
             new_qty = st.number_input(
                 "Qty", 
@@ -833,30 +855,51 @@ body = "\n".join(body_lines)
 
 st.text_area("Email Preview", body, height=200)
 
-# Uses secondary/blue styling
-if st.button("Send Email", key="send_email_btn"):
-    if not to_email.strip():
-        st.warning("Please enter receiver email.")
-    elif not st.session_state["cart"]:
-        st.warning("Cart is empty. Please add materials.")
-    else:
-        # URL encoding for safe email link construction
-        subject_encoded = urllib.parse.quote(subject)
-        body_encoded = urllib.parse.quote(body)
-        to_encoded = urllib.parse.quote(to_email)
+# --- START FIX: Use Styled Anchor Tag to bypass pop-up blockers ---
+if not to_email.strip():
+    st.warning("Please enter a receiver email to enable the send link.")
+elif not st.session_state["cart"]:
+    st.warning("Your cart is empty. Please add materials before sending.")
+else:
+    # URL encoding for safe email link construction
+    subject_encoded = urllib.parse.quote(subject)
+    body_encoded = urllib.parse.quote(body)
+    to_encoded = urllib.parse.quote(to_email)
 
-        gmail_url = (
-            "https://mail.google.com/mail/?view=cm&fs=1"
-            f"&to={to_encoded}&su={subject_encoded}&body={body_encoded}"
-        )
+    # Construct the Gmail mailto URL
+    gmail_url = (
+        "https://mail.google.com/mail/?view=cm&fs=1"
+        f"&to={to_encoded}&su={subject_encoded}&body={body_encoded}"
+    )
 
-        st.markdown(
-            f"""
-            <script>
-                // Use window.open to launch the Gmail link in a new tab
-                window.open("{gmail_url}", "_blank");
-            </script>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.success("✔ Opening Gmail with pre-filled email in a new window.")
+    # Render as a styled HTML anchor link (<a>)
+    st.markdown(
+        f"""
+        <a href="{gmail_url}" target="_blank" style="
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.25rem 0.75rem;
+            margin: 0px;
+            font-size: 1rem;
+            line-height: 1.75rem;
+            width: 100%;
+            height: 38px;
+            text-decoration: none;
+            color: {TEXT_DARK} !important; /* Changed text color for better contrast on orange */
+            background-color: {HIGHLIGHT_ORANGE} !important; /* HIGHLIGHT COLOR */
+            border-radius: 8px !important;
+            font-weight: 700 !important;
+            transition: all 0.2s ease;
+            /* Increased Shadow for prominence */
+            box-shadow: 0 10px 15px -3px rgba(245, 158, 11, 0.4), 0 4px 6px -4px rgba(245, 158, 11, 0.3);
+        " onmouseover="this.style.backgroundColor='{HIGHLIGHT_ORANGE_HOVER}'; this.style.transform='translateY(-2px)'"
+            onmouseout="this.style.backgroundColor='{HIGHLIGHT_ORANGE}'; this.style.transform='translateY(0)'"
+            onmousedown="this.style.boxShadow='none'; this.style.transform='translateY(0)'"
+            title="Opens Gmail in a new tab">
+            <span style="color: {TEXT_DARK} !important;">Send Email via Gmail</span>
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
+# --- END FIX ---
