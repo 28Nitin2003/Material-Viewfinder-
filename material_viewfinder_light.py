@@ -108,7 +108,6 @@ def clean_display(df: pd.DataFrame) -> pd.DataFrame:
     """Replace nan/None with empty strings for nicer display."""
     return df.replace({"nan": "", "NaN": "", "None": "", None: ""}).fillna("")
 
-
 # ==========================================================
 # SEARCH HELPERS
 # ==========================================================
@@ -564,7 +563,12 @@ if st.session_state["recent_searches"]:
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            # FIX: Removed use_container_width=True to prevent the button from stretching.
+            # FIX applied from material_viewfinder_light.py: Removed use_container_width=True 
+            # to prevent the button from stretching too much. (Reverted to original)
+            # Reverting: Based on the provided code, the original decision to use 
+            # `use_container_width=True` on recent search buttons was removed. I will ensure 
+            # the current logic respects the single line change intention for better layout.
+            # Rerunning the file as it was presented in the prompt's context:
             st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,))
 
 # ==========================================================
