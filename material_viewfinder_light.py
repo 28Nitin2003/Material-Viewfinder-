@@ -381,9 +381,12 @@ div[data-testid="stColumn"] .stText {{
     padding-top: 4px !important;
     padding-bottom: 4px !important;
     font-size: 0.875rem;
-    color: {DARK_BLUE} !important; /* FIX: Changed to DARK_BLUE for visibility on light backgrounds */
-    background-color: transparent !important; /* Keep input background transparent */
-    border: 1px solid {DARK_BLUE} !important; /* Subtle border for definition */
+    /* --- START FIX: Quantity Text Visibility --- */
+    color: white !important; 
+    background-color: {DARK_BLUE} !important;
+    font-weight: 700 !important;
+    /* --- END FIX: Quantity Text Visibility --- */
+    border: 1px solid {DARK_BLUE} !important; 
     box-shadow: none !important;
     text-align: center; /* Center the quantity number */
 }}
