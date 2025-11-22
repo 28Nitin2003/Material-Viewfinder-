@@ -382,11 +382,10 @@ div[data-testid="stColumn"] .stText {{
     padding-top: 2px !important; /* Decreased padding */
     padding-bottom: 2px !important; /* Decreased padding */
     font-size: 0.8rem; /* Smaller font size */
-    /* --- START FIX: Quantity Text Visibility --- */
+    /* --- Quantity Text Visibility (Dark Mode Fix) --- */
     color: white !important; 
     background-color: {DARK_BLUE} !important;
     font-weight: 700 !important;
-    /* --- END FIX: Quantity Text Visibility --- */
     border: 1px solid {DARK_BLUE} !important; 
     box-shadow: none !important;
     text-align: center; /* Center the quantity number */
@@ -568,11 +567,12 @@ def on_recent_click(search_text):
 
 if st.session_state["recent_searches"]:
     st.markdown("### 🕘 Recent")
+    # Use a flexible layout for recent searches
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            # **CORRECTED LINE:** Passing on_recent_click as a keyword argument (on_click)
-            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,), use_container_width=True)
+            # **FIXED:** Removed use_container_width=True to make buttons width-fit-content
+            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,))
 
 # ==========================================================
 # SEARCH LOGIC
