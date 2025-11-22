@@ -639,6 +639,7 @@ if base is not None and not base.empty:
             font-size: 1.25rem; 
             font-weight: 700;
             border-radius: 8px !important;
+            display: inline-block; /* FIX: Only highlight content length */
         ">
             {label}
         </div>
