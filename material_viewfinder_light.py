@@ -531,16 +531,12 @@ if (
     st.session_state["editor_key"] += 1
 
 # ==========================================================
-# SEARCH BAR (Modified to fix StreamlitAPIException)
+# SEARCH BAR (Fixed StreamlitAPIException by ensuring clear button is strictly outside the form)
 # ==========================================================
-# We use columns for layout, but ensure the independent st.button("Clear") 
-# is placed outside the st.form() context.
-
-c_s, c_btn, c_clr = st.columns([5, 1, 1], vertical_alignment="bottom")
+c_s, c_btn_submit, c_btn_clear = st.columns([5, 1, 1], vertical_alignment="bottom")
 
 # 1. SEARCH INPUT & SUBMIT BUTTON (Inside Form)
 with st.form(key='search_form', clear_on_submit=False):
-    # Place text input and submit button inside the form columns
     with c_s:
         q = st.text_input(
             "Search",
@@ -549,23 +545,22 @@ with st.form(key='search_form', clear_on_submit=False):
             label_visibility="visible" 
         )
     
-    # Use c_btn for the submit button
-    with c_btn:
-        # st.form_submit_button handles Enter key and form submission
+    # Place submit button inside its column within the form
+    with c_btn_submit:
         submitted = st.form_submit_button("Submit", use_container_width=True, type="secondary")
     
-    # Need a placeholder column to maintain alignment for the Clear button, 
-    # but the Clear button itself must be placed outside the form.
-    with c_clr:
-        # Placeholder for visual alignment when form is active
-        # The form submit button usually takes up the full space in its column
+    # Add a placeholder in the clear button column inside the form 
+    # to maintain vertical alignment for the clear button placed outside.
+    with c_btn_clear:
+        # A simple non-interactive element to take up the space of the clear button
         st.markdown("<div style='height: 38px;'></div>", unsafe_allow_html=True) 
-        # This is a hack to vertically align the non-form clear button below
 
-# 2. CLEAR BUTTON (Outside Form)
-with c_clr:
+# 2. CLEAR BUTTON (Outside Form, placed in the same column as the placeholder above)
+with c_btn_clear:
     # Clear button remains a regular button and MUST be outside the form context
-    # Use a different key since it's now outside the form definition block
+    # This button will now sit visually where the placeholder was, 
+    # aligned with the search input and submit button.
+    # We use a unique key for separation from the form context.
     clear_clicked = st.button("Clear", key="clear_btn_fixed", use_container_width=True)
 
 # Handle the clear button click
