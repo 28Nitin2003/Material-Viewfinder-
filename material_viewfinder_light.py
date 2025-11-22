@@ -1,5 +1,5 @@
 # ==========================================================
-# MATERIAL VIEWFINDER — FINAL (AUTO-RESET SELECTION + EDITABLE CART)
+# MATERIAL VIEWFINDER — FINAL (INSTANT DELETE + BLUE BORDERS)
 # ==========================================================
 
 import os
@@ -23,10 +23,9 @@ KEY_DESC = "Material Proposed Description"
 
 # COLORS
 BLUE = "#00B4D8"
-DARK_BLUE = "#003566"
+DARK_BLUE = "#0077B6"
 DARK_GREEN = "#064E3B"
-LIGHT_GREEN = "#D1FAE5"
-BORDER_GREEN = "#48BB78"
+RED_DELETE = "#EF4444"
 
 # ==========================================================
 # DATA EXTRACTION
@@ -176,53 +175,70 @@ body, .stApp {{
     font-family:'Inter', sans-serif !important;
 }}
 
-/* MAIN BUTTON STYLE */
-.stButton>button {{
-    background:{BLUE} !important;
-    color:white !important;
-    font-weight:700 !important;
-    padding:6px 18px !important;
-    font-size:14px !important;
-    border:none !important;
+/* ============================================================ */
+/* 1. GENERAL BUTTONS (Search, Submit, Clear, Add to Cart)      */
+/* ============================================================ */
+button[kind="secondary"] {{
+    background-color: {BLUE} !important;
+    color: white !important;
+    border: none !important;
+    font-weight: 700 !important;
+}}
+button[kind="secondary"]:hover {{
+    background-color: {DARK_BLUE} !important;
+    color: white !important;
+}}
+button[kind="secondary"]:focus, button[kind="secondary"]:active {{
+    background-color: {DARK_BLUE} !important;
+    color: white !important;
+    outline: none !important;
+    box-shadow: none !important;
 }}
 
-/* RECENT SEARCH BUTTONS */
-div[data-testid="column"] .stButton>button {{
-    background:{BLUE} !important;
-    padding:4px 14px !important;
-    font-size:13px !important;
-    font-weight:600 !important;
+/* ============================================================ */
+/* 2. DELETE BUTTON (Red Icon, Transparent BG)                  */
+/* ============================================================ */
+button[kind="primary"] {{
+    background-color: transparent !important;
+    border: 1px solid {RED_DELETE} !important;
+    color: {RED_DELETE} !important;
+    font-weight: 700 !important;
+    transition: all 0.2s ease !important;
+}}
+button[kind="primary"]:hover {{
+    background-color: {RED_DELETE} !important;
+    color: white !important;
+    border: 1px solid {RED_DELETE} !important;
+}}
+button[kind="primary"]:focus {{
+    box-shadow: none !important;
+    border-color: {RED_DELETE} !important;
 }}
 
-/* TEXT INPUT */
+/* ============================================================ */
+/* 3. INPUT FIELDS (Text Input + SELECT BOX BORDER)             */
+/* ============================================================ */
+
+/* Text Input Border */
 .stTextInput input {{
-    border:2px solid {BLUE} !important;
-    color:{BLUE} !important;
-    padding:6px !important;
-    font-size:15px !important;
+    border: 2px solid {BLUE} !important;
+    color: {DARK_BLUE} !important;
+    padding: 6px !important;
 }}
 
-/* LABELS */
-.stSelectbox label p,
-.stTextInput label p {{
-    font-weight:800 !important;
-    color:{DARK_BLUE} !important;
+/* DROP DOWN / SELECTBOX BORDER (New Request) */
+.stSelectbox div[data-baseweb="select"] > div {{
+    border: 2px solid {BLUE} !important;
+    color: {DARK_BLUE} !important;
 }}
 
-/* TABLE HEADERS - BOLD */
-[data-testid="stDataEditor"] thead th,
-[data-testid="stDataEditor"] div[data-testid="column_header_content"] {{
+/* TABLE HEADERS */
+[data-testid="stDataEditor"] thead th {{
     background-color: {DARK_GREEN} !important;
     color: white !important;
-    font-size: 16px !important;
-    font-weight: 900 !important; 
-    font-family: 'Inter', sans-serif !important;
 }}
 
-h1,h2,h3 {{
-    color:{DARK_BLUE} !important;
-    font-weight:900 !important;
-}}
+h1,h2,h3 {{ color: {DARK_BLUE} !important; }}
 </style>
 """,
     unsafe_allow_html=True,
@@ -242,6 +258,10 @@ if "recent_searches" not in st.session_state:
 if "cart" not in st.session_state:
     st.session_state["cart"] = {}
 
+# --- CART DELETE LOGIC STATES ---
+if "undo_item" not in st.session_state:
+    st.session_state["undo_item"] = None 
+
 # Base table logic
 if "table_df_base" not in st.session_state:
     st.session_state["table_df_base"] = None
@@ -254,7 +274,7 @@ if "current_dept" not in st.session_state:
 if "current_machine" not in st.session_state:
     st.session_state["current_machine"] = None
 
-# TABLE RESET KEY (New for auto-clearing selections)
+# TABLE RESET KEY
 if "editor_key" not in st.session_state:
     st.session_state["editor_key"] = 0
 
@@ -264,7 +284,7 @@ if st.session_state["clear_trigger"]:
     st.session_state["table_df_base"] = None
     st.session_state["table_label"] = ""
     st.session_state["clear_trigger"] = False
-    st.session_state["editor_key"] += 1  # Ensure clean slate
+    st.session_state["editor_key"] += 1
 
 # ==========================================================
 # LOAD DATA
@@ -298,12 +318,12 @@ if (
     st.session_state["table_label"] = ""
     st.session_state["current_dept"] = department
     st.session_state["current_machine"] = machine
-    st.session_state["editor_key"] += 1  # Force reset table
+    st.session_state["editor_key"] += 1
 
 # ==========================================================
 # SEARCH BAR
 # ==========================================================
-c_s, c_btn, c_clr = st.columns([5, 1, 1])
+c_s, c_btn, c_clr = st.columns([5, 1, 1], vertical_alignment="bottom")
 
 with c_s:
     q = st.text_input(
@@ -313,11 +333,9 @@ with c_s:
     )
 
 with c_btn:
-    st.write("")
     submit = st.button("Submit")
 
 with c_clr:
-    st.write("")
     clear = st.button("Clear", key="clear_btn")
 
 if clear:
@@ -328,7 +346,7 @@ if clear:
     st.rerun()
 
 # ==========================================================
-# RECENT SEARCHES (CALLBACK METHOD)
+# RECENT SEARCHES
 # ==========================================================
 def on_recent_click(search_text):
     st.session_state["query"] = search_text
@@ -348,7 +366,7 @@ should_search = submit or st.session_state.get("trigger_search", False)
 
 if should_search:
     st.session_state["trigger_search"] = False
-    st.session_state["editor_key"] += 1  # Reset selection on new search
+    st.session_state["editor_key"] += 1
 
     q_stripped = st.session_state["query"].strip()
 
@@ -359,7 +377,6 @@ if should_search:
     else:
         filtered_local = hybrid_multi_search(subset, q_stripped)
 
-        # update recent
         recent = st.session_state["recent_searches"]
         if q_stripped in recent:
             recent.remove(q_stripped)
@@ -384,7 +401,7 @@ if should_search:
                 st.dataframe(clean_display(filtered_global), use_container_width=True)
 
 # ==========================================================
-# SHOW SAP TABLE (WITH AUTO RESET)
+# SHOW SAP TABLE (AUTO RESET)
 # ==========================================================
 base = st.session_state["table_df_base"]
 label = st.session_state["table_label"]
@@ -393,14 +410,11 @@ if base is not None and not base.empty:
     st.subheader(label)
 
     display_df = base.copy().reset_index(drop=True)
-
-    # Pre-fill Select and Quantity
     if "Select" not in display_df.columns:
         display_df.insert(0, "Select", False)
     if "Quantity" not in display_df.columns:
         display_df.insert(1, "Quantity", 1)
 
-    # Use dynamic key for auto-resetting checkboxes
     unique_key = f"sap_table_editor_{st.session_state['editor_key']}"
 
     edited = st.data_editor(
@@ -434,115 +448,147 @@ if base is not None and not base.empty:
                 except:
                     qty = 1
 
-                # Add to cart dictionary
-                cart[code] = {
-                    "Material": code,
-                    "Description": row.get(KEY_DESC, ""),
-                    "Department": row.get("Department", ""),
-                    "Machine Type": row.get("Machine Type", ""),
-                    "Quantity": qty,
-                }
+                if code in cart:
+                    cart[code]["Quantity"] += qty
+                else:
+                    cart[code] = {
+                        "Material": code,
+                        "Description": row.get(KEY_DESC, ""),
+                        "Department": row.get("Department", ""),
+                        "Machine Type": row.get("Machine Type", ""),
+                        "Quantity": qty,
+                    }
                 count += 1
 
             if count > 0:
                 st.session_state["cart"] = cart
                 st.success(f"✔ Added {count} item(s) to cart.")
-                # Increment key to force table reset (uncheck boxes)
                 st.session_state["editor_key"] += 1
                 st.rerun()
 
 # ==========================================================
-# CART (NOW EDITABLE)
+# CART LOGIC (INSTANT DELETE + UNDO)
 # ==========================================================
 st.write("---")
-st.subheader("🛒 Cart (Edit Quantity Here)")
+
+# 1. UNDO Notification
+if st.session_state["undo_item"]:
+    c_undo, _ = st.columns([2, 5])
+    with c_undo:
+        # Standard Blue Button
+        if st.button("↩ Undo Delete"):
+            restored = st.session_state["undo_item"]
+            st.session_state["cart"][restored["Material"]] = restored
+            st.session_state["undo_item"] = None
+            st.rerun()
+
+st.subheader("🛒 Cart")
 
 if not st.session_state["cart"]:
-    st.info("Cart is empty.")
+    st.info("Your cart is empty.")
 else:
-    # Convert cart dict to DataFrame
-    cart_df = pd.DataFrame(st.session_state["cart"].values())
+    # 2. HEADER ROW
+    h1, h2, h3, h4 = st.columns([1, 4, 1.5, 0.5])
+    h1.markdown("**Qty**")
+    h2.markdown("**Material / Description**")
+    h3.markdown("**Machine**")
+    h4.markdown("") # Empty for delete button
+
+    st.markdown("<hr style='margin: 5px 0'>", unsafe_allow_html=True)
+
+    # 3. ITERATE ITEMS
+    current_cart = st.session_state["cart"]
     
-    # Ensure Quantity is first for better UX
-    cols = ["Quantity", "Material", "Description", "Department", "Machine Type"]
-    # Filter to exist columns only
-    final_cols = [c for c in cols if c in cart_df.columns]
-    cart_df = cart_df[final_cols]
+    # List conversion for safe iteration
+    for code, item in list(current_cart.items()):
+        
+        c1, c2, c3, c4 = st.columns([1, 4, 1.5, 0.5])
+        
+        # COLUMN 1: EDITABLE QUANTITY
+        with c1:
+            new_qty = st.number_input(
+                "Qty", 
+                value=int(item["Quantity"]), 
+                min_value=1, 
+                step=1, 
+                key=f"qty_{code}",
+                label_visibility="collapsed"
+            )
+            if new_qty != item["Quantity"]:
+                st.session_state["cart"][code]["Quantity"] = new_qty
+                
+        # COLUMN 2: DESCRIPTION & CODE
+        with c2:
+            st.markdown(f"**{item['Description']}**")
+            st.caption(f"Code: {item['Material']} | Dept: {item['Department']}")
+            
+        # COLUMN 3: MACHINE
+        with c3:
+            st.text(item['Machine Type'])
+            
+        # COLUMN 4: INSTANT DELETE BUTTON
+        with c4:
+            # type="primary" makes it Red (via CSS)
+            if st.button("🗑️", key=f"del_{code}", type="primary"):
+                # 1. Save to Undo
+                st.session_state["undo_item"] = st.session_state["cart"][code]
+                # 2. Delete immediately
+                del st.session_state["cart"][code]
+                st.rerun()
+        
+        st.markdown("<div style='border-bottom:1px solid #E5E7EB; margin-bottom:8px;'></div>", unsafe_allow_html=True)
 
-    # EDITABLE CART TABLE
-    edited_cart = st.data_editor(
-        cart_df,
-        key="cart_editor",
-        hide_index=True,
-        use_container_width=True,
-        num_rows="dynamic", # Allows deleting rows if needed
-        disabled=["Material", "Description", "Department", "Machine Type"], # Lock details, open Quantity
-        column_config={
-            "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1, required=True)
-        }
-    )
-    
-    # SYNC CART CHANGES BACK TO STATE
-    # If user edits quantity in this table, update the session state dictionary
-    if not edited_cart.equals(cart_df):
-        new_cart = {}
-        for _, row in edited_cart.iterrows():
-             code = str(row["Material"])
-             new_cart[code] = row.to_dict()
-        st.session_state["cart"] = new_cart
-
-
-    if st.button("Clear Cart"):
+    # CLEAR ALL BUTTON
+    if st.button("Clear Entire Cart"):
         st.session_state["cart"] = {}
+        st.session_state["undo_item"] = None
         st.rerun()
 
-    # ======================================================
-    # EMAIL
-    # ======================================================
-    st.write("---")
-    st.subheader("✉ Send Materials via Gmail")
+# ==========================================================
+# EMAIL SECTION
+# ==========================================================
+st.write("---")
+st.subheader("✉ Send Materials via Gmail")
 
-    to_email = st.text_input("Receiver Email")
+to_email = st.text_input("Receiver Email")
+subject = "Material Requirement – Material Viewfinder"
 
-    subject = "Material Requirement – Material Viewfinder"
+body_lines = [
+    "Dear Sir/Madam,",
+    "",
+    "Please arrange the following materials:",
+    "",
+]
 
-    body_lines = [
-        "Dear Sir/Madam,",
-        "",
-        "Please arrange the following materials:",
-        "",
-    ]
+for item in st.session_state["cart"].values():
+    body_lines.append(
+        f"- {item['Material']} — {item['Description']} "
+        f"(Dept: {item['Department']}, Machine: {item['Machine Type']}, Qty: {item['Quantity']})"
+    )
 
-    # Read from the *latest* cart state (including edits)
-    for item in st.session_state["cart"].values():
-        body_lines.append(
-            f"- {item['Material']} — {item['Description']} "
-            f"(Dept: {item['Department']}, Machine: {item['Machine Type']}, Qty: {item['Quantity']})"
+body_lines += ["", "Regards,", "Material Viewfinder Bot"]
+body = "\n".join(body_lines)
+
+st.text_area("Email Preview", body, height=200)
+
+if st.button("Send Email"):
+    if not to_email.strip():
+        st.warning("Please enter receiver email.")
+    else:
+        subject_encoded = urllib.parse.quote(subject)
+        body_encoded = urllib.parse.quote(body)
+        to_encoded = urllib.parse.quote(to_email)
+
+        gmail_url = (
+            "https://mail.google.com/mail/?view=cm&fs=1"
+            f"&to={to_encoded}&su={subject_encoded}&body={body_encoded}"
         )
 
-    body_lines += ["", "Regards,", "Material Viewfinder Bot"]
-    body = "\n".join(body_lines)
-
-    st.text_area("Email Preview", body, height=200)
-
-    if st.button("Send Email"):
-        if not to_email.strip():
-            st.warning("Please enter receiver email.")
-        else:
-            subject_encoded = urllib.parse.quote(subject)
-            body_encoded = urllib.parse.quote(body)
-            to_encoded = urllib.parse.quote(to_email)
-
-            gmail_url = (
-                "https://mail.google.com/mail/?view=cm&fs=1"
-                f"&to={to_encoded}&su={subject_encoded}&body={body_encoded}"
-            )
-
-            st.markdown(
-                f"""
-                <script>
-                    window.open("{gmail_url}", "_blank");
-                </script>
-                """,
-                unsafe_allow_html=True,
-            )
+        st.markdown(
+            f"""
+            <script>
+                window.open("{gmail_url}", "_blank");
+            </script>
+            """,
+            unsafe_allow_html=True,
+        )
