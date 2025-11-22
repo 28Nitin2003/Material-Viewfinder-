@@ -82,8 +82,7 @@ def load_all():
                     rows.extend(T.to_dict(orient="records"))
         except Exception as e:
             # Handle potential errors during file reading/parsing
-            # Using st.warning instead of st.error for less disruptive display of non-critical data loading failure
-            st.warning(f"Error processing file {fname}, sheet {sheet}: {e}")
+            st.error(f"Error processing file {fname}, sheet {sheet}: {e}")
             continue
 
     if not rows:
@@ -347,14 +346,13 @@ button[kind="primary"].stButton:not(.stColumns > div:nth-child(4) button):hover 
 header {{visibility: hidden;}}
 
 /* ============================================================ */
-/* 5. CART ITEM STYLING - ULTRA TIGHT PADDING */
+/* 5. CART ITEM STYLING - ULTRA TIGHT PADDING (Final Compression)*/
 /* ============================================================ */
 
 /* Reduce vertical padding on all blocks within the st.columns for the cart */
 div[data-testid="stColumn"] > div > div > div {{
-    /* Decreased from 1px to 0px for tighter vertical spacing */
-    padding-top: 0px !important; 
-    padding-bottom: 0px !important; 
+    padding-top: 1px !important; 
+    padding-bottom: 1px !important; 
     margin-top: 0px !important;
     margin-bottom: 0px !important;
 }}
@@ -362,15 +360,15 @@ div[data-testid="stColumn"] > div > div > div {{
 /* Tighter spacing for description/caption text */
 div[data-testid="stColumn"] .stMarkdown p, div[data-testid="stColumn"] .stCaption {{
     margin: 0px 0px !important;
-    line-height: 1.0; /* Reduced line height */
-    font-size: 0.8rem; /* Slightly smaller font for description/caption */
+    line-height: 1.1;
+    font-size: 0.875rem;
 }}
 
 div[data-testid="stColumn"] .stText {{
     margin: 0px !important;
     padding: 0px !important;
-    line-height: 1.0; /* Reduced line height */
-    font-size: 0.8rem; /* Slightly smaller font */
+    line-height: 1.1;
+    font-size: 0.875rem;
 }}
 
 /* Tighter spacing and smaller height for Quantity Input */
@@ -379,23 +377,24 @@ div[data-testid="stColumn"] .stText {{
     padding: 0 !important;
 }}
 .stNumberInput div[data-baseweb="input"] input {{
-    height: 24px !important; /* Decreased height */
-    padding-top: 2px !important; /* Decreased padding */
-    padding-bottom: 2px !important; /* Decreased padding */
-    font-size: 0.8rem; /* Smaller font size */
-    /* --- Quantity Text Visibility (Dark Mode Fix) --- */
+    height: 28px !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    font-size: 0.875rem;
+    /* --- START FIX: Quantity Text Visibility --- */
     color: white !important; 
     background-color: {DARK_BLUE} !important;
     font-weight: 700 !important;
+    /* --- END FIX: Quantity Text Visibility --- */
     border: 1px solid {DARK_BLUE} !important; 
     box-shadow: none !important;
     text-align: center; /* Center the quantity number */
 }}
 /* Adjust buttons inside number input (plus/minus) */
 .stNumberInput button {{
-    min-height: 24px !important; /* Decreased min-height */
+    min-height: 28px !important;
     line-height: 1;
-    padding: 0 3px; /* Decreased padding */
+    padding: 0 4px; 
     color: {DARK_BLUE} !important; /* Ensure plus/minus buttons are dark blue */
     background-color: transparent !important; /* Keep button backgrounds transparent */
     border: none !important; /* Remove individual button borders */
@@ -409,9 +408,9 @@ div[data-testid="stColumn"] .stText {{
 
 /* Align delete button vertically */
 .stColumns > div:nth-child(4) button {{
-    margin-top: 2px; /* Adjusted margin to align better */
-    height: 24px !important; /* Decreased height */
-    min-width: 24px !important; /* Decreased min-width */
+    margin-top: 4px; 
+    height: 28px !important;
+    min-width: 28px !important;
     padding: 0;
     display: flex;
     justify-content: center;
@@ -420,13 +419,7 @@ div[data-testid="stColumn"] .stText {{
 
 /* Override the default margin on the Quantity label column to center content */
 .stColumns > div:nth-child(1) .stMarkdown p {{
-    margin-top: 4px !important; /* Decreased margin */
-}}
-
-/* Added to remove extra vertical space under cart items */
-hr {{
-    margin-top: 5px !important;
-    margin-bottom: 5px !important;
+    margin-top: 8px !important;
 }}
 
 </style>
@@ -470,19 +463,11 @@ if "editor_key" not in st.session_state:
 
 # Apply clear logic
 if st.session_state["clear_trigger"]:
-    # The clear button was clicked, reset state and rerun
     st.session_state["query"] = ""
     st.session_state["table_df_base"] = None
     st.session_state["table_label"] = ""
     st.session_state["clear_trigger"] = False
     st.session_state["editor_key"] += 1
-    # We must explicitly set the query key for the text input to ensure it visually clears
-    st.session_state["query_input_key"] = "" 
-
-# Temporary key for the search input to reset its visual value on clear
-if "query_input_key" not in st.session_state:
-    st.session_state["query_input_key"] = st.session_state["query"]
-
 
 # ==========================================================
 # LOAD DATA
@@ -490,6 +475,7 @@ if "query_input_key" not in st.session_state:
 df = load_all()
 if df.empty:
     st.error("❌ Material data could not be loaded. Ensure master files are present.")
+    st.stop()
 
 # ==========================================================
 # AESTHETIC HEADER
@@ -537,52 +523,31 @@ if (
     st.session_state["editor_key"] += 1
 
 # ==========================================================
-# SEARCH BAR (Definitive fix for StreamlitAPIException)
+# SEARCH BAR
 # ==========================================================
-# Use a single container for the form, and a separate column structure below it for the clear button
-# to avoid scope confusion.
+c_s, c_btn, c_clr = st.columns([5, 1, 1], vertical_alignment="bottom")
 
-# Create the form container for the search input and submit button
-with st.form(key='search_form', clear_on_submit=False):
-    # Use columns inside the form for layout
-    c_s, c_btn_submit = st.columns([5, 1], vertical_alignment="bottom")
+with c_s:
+    q = st.text_input(
+        "Search",
+        key="query",
+        placeholder="Search by description or material code (e.g. bearing, 13000...)",
+        label_visibility="visible" 
+    )
 
-    with c_s:
-        # Use the session state key to control the displayed value for clearing
-        q = st.text_input(
-            "Search",
-            value=st.session_state["query_input_key"], # Read from the temporary key
-            key="query_value_on_form_submit", # Unique key for the actual widget
-            placeholder="Search by description or material code (e.g. bearing, 13000...)",
-            label_visibility="visible" 
-        )
-    
-    with c_btn_submit:
-        # st.form_submit_button MUST be inside the form
-        submitted = st.form_submit_button("Submit", use_container_width=True, type="secondary")
-        
-    # --- FORM SUBMISSION HANDLER ---
-    if submitted:
-        # Update the master query state from the input widget
-        st.session_state["query"] = q
-        st.session_state["query_input_key"] = q # Keep the visual value
-        st.session_state["trigger_search"] = True
+with c_btn:
+    # Uses secondary/blue styling
+    submit = st.button("Submit", use_container_width=True, key="submit_btn")
 
+with c_clr:
+    # Uses secondary/blue styling
+    clear = st.button("Clear", key="clear_btn", use_container_width=True)
 
-# Place the Clear button completely outside the form block
-c_clear_placeholder, c_btn_clear = st.columns([5, 1], vertical_alignment="bottom")
-
-with c_btn_clear:
-    # Use CSS to force the st.button ("Clear") to align vertically with the st.form_submit_button ("Submit")
-    # by adding a slight top margin, as it is outside the form context.
-    st.markdown("<style>#clear_btn_fixed_div {margin-top: 25px;}</style>", unsafe_allow_html=True)
-    with st.container():
-        clear_clicked = st.button("Clear", key="clear_btn_fixed", use_container_width=True)
-
-# Handle the clear button click
-if clear_clicked:
+if clear:
     st.session_state["clear_trigger"] = True
-    # st.rerun will apply the clear logic defined at the start of the script
+    st.session_state["table_df_base"] = None
+    st.session_state["table_label"] = ""
+    st.session_state["editor_key"] += 1
     st.rerun()
 
 # ==========================================================
@@ -591,24 +556,21 @@ if clear_clicked:
 def on_recent_click(search_text):
     # Set the query text
     st.session_state["query"] = search_text
-    st.session_state["query_input_key"] = search_text
     # Flag to trigger the search logic
     st.session_state["trigger_search"] = True
 
 if st.session_state["recent_searches"]:
     st.markdown("### 🕘 Recent")
-    # Use columns for a flexible layout
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            # Added use_container_width=True back in for a compact, full-width button
+            # **CORRECTED LINE:** Passing on_recent_click as a keyword argument (on_click)
             st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,), use_container_width=True)
 
 # ==========================================================
 # SEARCH LOGIC
 # ==========================================================
-# The search is triggered by form submission OR a Recent Search click
-should_search = st.session_state.get("trigger_search", False)
+should_search = submit or st.session_state.get("trigger_search", False)
 
 if should_search:
     # Immediately reset the flag and increment key to force table reset
@@ -654,8 +616,10 @@ if should_search:
                 # Use a standard dataframe for the global results that won't interfere with the main data_editor
                 st.dataframe(clean_display(filtered_global), use_container_width=True)
     
-    # Rerun to apply search results immediately if search was triggered by recent button or submit
-    st.rerun()
+    # Rerun to apply search results immediately if search was triggered by recent button
+    if st.session_state["query"] == q_stripped and st.session_state["trigger_search"] == False:
+        # Only rerun if the query was set by a button click and not manually typed (which reruns on submit)
+        st.rerun()
 
 # ==========================================================
 # SHOW SAP TABLE (AUTO RESET)
@@ -775,15 +739,12 @@ else:
                 # The state value is updated automatically by st.number_input
                 new_val = st.session_state[f"qty_{material_code}"]
                 st.session_state["cart"][material_code]["Quantity"] = new_val
-                # We don't need a rerun here because the next loop iteration will redraw with the new state
-                # and the st.number_input handles its own state for one cycle.
-                
-            # Only call on_change if the value is actually different to minimize reruns
-            current_value = int(item["Quantity"])
+                # Rerunning is necessary to update the cart display fully
+                st.rerun()
 
             new_qty = st.number_input(
                 "Qty", 
-                value=current_value, 
+                value=int(item["Quantity"]), 
                 min_value=1, 
                 step=1, 
                 key=f"qty_{code}",
