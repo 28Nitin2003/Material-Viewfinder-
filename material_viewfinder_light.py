@@ -43,7 +43,8 @@ def extract_tables(df: pd.DataFrame):
         if not cols:
             continue
 
-        end = headers[i + 1] if i i + 1 < len(headers) else len(A)
+        # FIX: Removed the extraneous 'i' that caused the SyntaxError
+        end = headers[i + 1] if (i + 1) < len(headers) else len(A)
         block = A.iloc[r + 1 : end, cols].copy()
         block.columns = [header_vals[c] for c in cols]
         block = block.dropna(how="all")
@@ -653,13 +654,11 @@ if st.session_state["trigger_search"]:
 if st.session_state["table_df_base"] is not None:
     display_df = clean_display(st.session_state["table_df_base"])
     
-    # ------------------ ADDED FIX FOR TITLE CONTRAST ------------------
     # Use a custom CSS class 'sap-record-title' which is targeted in the <style> block
     st.markdown(
         f'<p class="sap-record-title"><span style="margin-right: 8px;">&#x1F4C4;</span>SAP Record — {st.session_state["table_label"]}</p>',
         unsafe_allow_html=True
     )
-    # ------------------------------------------------------------------
 
     # --- DATAFRAME CONFIGURATION ---
     column_config = {
