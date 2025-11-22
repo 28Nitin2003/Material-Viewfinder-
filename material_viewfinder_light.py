@@ -24,6 +24,7 @@ KEY_DESC = "Material Proposed Description"
 # --- ENHANCED COLORS ---
 BLUE = "#1F7A8C"        # Richer Teal/Corporate Blue
 DARK_BLUE = "#003566"   # Deep Blue for Title
+LIGHT_BLUE_TEXT = "#E0F2FE" # Very light blue for high visibility
 DARK_GREEN = "#006D5B"  # Professional Dark Green for Headers
 RED_DELETE = "#EF4444"
 TEXT_DARK = "#1E293B"   # Very dark gray/almost black for all general text
@@ -349,8 +350,8 @@ div[data-testid="stColumn"] .stText {{
     padding-top: 4px !important;
     padding-bottom: 4px !important;
     font-size: 0.875rem;
-    color: {DARK_BLUE} !important; 
-    background-color: transparent !important; /* FIX: Make input background transparent */
+    color: {LIGHT_BLUE_TEXT} !important; /* FIX: Set text color to light blue for visibility */
+    background-color: transparent !important; /* FIX: Keep input background transparent */
     border: 1px solid {DARK_BLUE} !important; /* Subtle border for definition */
     box-shadow: none !important;
 }}
@@ -360,7 +361,7 @@ div[data-testid="stColumn"] .stText {{
     line-height: 1;
     padding: 0 4px; 
     color: {DARK_BLUE} !important; 
-    background-color: transparent !important; /* FIX: Make button backgrounds transparent */
+    background-color: transparent !important; /* Keep button backgrounds transparent */
     border: none !important; /* Remove individual button borders */
 }}
 /* Target the overall container for the number input buttons to remove its background if any */
@@ -741,7 +742,7 @@ st.text_area("Email Preview", body, height=200)
 if st.button("Send Email"):
     if not to_email.strip():
         st.warning("Please enter receiver email.")
-    else:
+    else:A
         subject_encoded = urllib.parse.quote(subject)
         body_encoded = urllib.parse.quote(body)
         to_encoded = urllib.parse.quote(to_email)
