@@ -351,8 +351,9 @@ header {{visibility: hidden;}}
 
 /* Reduce vertical padding on all blocks within the st.columns for the cart */
 div[data-testid="stColumn"] > div > div > div {{
-    padding-top: 1px !important; 
-    padding-bottom: 1px !important; 
+    /* Decreased from 1px to 0px for tighter vertical spacing */
+    padding-top: 0px !important; 
+    padding-bottom: 0px !important; 
     margin-top: 0px !important;
     margin-bottom: 0px !important;
 }}
@@ -360,15 +361,15 @@ div[data-testid="stColumn"] > div > div > div {{
 /* Tighter spacing for description/caption text */
 div[data-testid="stColumn"] .stMarkdown p, div[data-testid="stColumn"] .stCaption {{
     margin: 0px 0px !important;
-    line-height: 1.1;
-    font-size: 0.875rem;
+    line-height: 1.0; /* Reduced line height */
+    font-size: 0.8rem; /* Slightly smaller font for description/caption */
 }}
 
 div[data-testid="stColumn"] .stText {{
     margin: 0px !important;
     padding: 0px !important;
-    line-height: 1.1;
-    font-size: 0.875rem;
+    line-height: 1.0; /* Reduced line height */
+    font-size: 0.8rem; /* Slightly smaller font */
 }}
 
 /* Tighter spacing and smaller height for Quantity Input */
@@ -377,10 +378,10 @@ div[data-testid="stColumn"] .stText {{
     padding: 0 !important;
 }}
 .stNumberInput div[data-baseweb="input"] input {{
-    height: 28px !important;
-    padding-top: 4px !important;
-    padding-bottom: 4px !important;
-    font-size: 0.875rem;
+    height: 24px !important; /* Decreased height */
+    padding-top: 2px !important; /* Decreased padding */
+    padding-bottom: 2px !important; /* Decreased padding */
+    font-size: 0.8rem; /* Smaller font size */
     /* --- START FIX: Quantity Text Visibility --- */
     color: white !important; 
     background-color: {DARK_BLUE} !important;
@@ -392,9 +393,9 @@ div[data-testid="stColumn"] .stText {{
 }}
 /* Adjust buttons inside number input (plus/minus) */
 .stNumberInput button {{
-    min-height: 28px !important;
+    min-height: 24px !important; /* Decreased min-height */
     line-height: 1;
-    padding: 0 4px; 
+    padding: 0 3px; /* Decreased padding */
     color: {DARK_BLUE} !important; /* Ensure plus/minus buttons are dark blue */
     background-color: transparent !important; /* Keep button backgrounds transparent */
     border: none !important; /* Remove individual button borders */
@@ -408,9 +409,9 @@ div[data-testid="stColumn"] .stText {{
 
 /* Align delete button vertically */
 .stColumns > div:nth-child(4) button {{
-    margin-top: 4px; 
-    height: 28px !important;
-    min-width: 28px !important;
+    margin-top: 2px; /* Adjusted margin to align better */
+    height: 24px !important; /* Decreased height */
+    min-width: 24px !important; /* Decreased min-width */
     padding: 0;
     display: flex;
     justify-content: center;
@@ -419,7 +420,13 @@ div[data-testid="stColumn"] .stText {{
 
 /* Override the default margin on the Quantity label column to center content */
 .stColumns > div:nth-child(1) .stMarkdown p {{
-    margin-top: 8px !important;
+    margin-top: 4px !important; /* Decreased margin */
+}}
+
+/* Added to remove extra vertical space under cart items */
+hr {{
+    margin-top: 5px !important;
+    margin-bottom: 5px !important;
 }}
 
 </style>
