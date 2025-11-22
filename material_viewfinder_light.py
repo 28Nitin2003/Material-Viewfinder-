@@ -1,5 +1,5 @@
 # ==========================================================
-# MATERIAL VIEWFINDER — FINAL AESTHETIC BUILD (ULTRA TIGHT CART PADDING & BOLD/DARK HEADERS)
+# MATERIAL VIEWFINDER — FINAL AESTHETIC BUILD (DARK MODE FIX + VISIBILITY)
 # ==========================================================
 
 import os
@@ -26,6 +26,7 @@ BLUE = "#1F7A8C"        # Richer Teal/Corporate Blue
 DARK_BLUE = "#003566"   # Deep Blue for Title
 DARK_GREEN = "#006D5B"  # Professional Dark Green for Headers
 RED_DELETE = "#EF4444"
+TEXT_DARK = "#1E293B"   # Very dark gray/almost black for all general text
 
 # ==========================================================
 # DATA EXTRACTION
@@ -172,10 +173,36 @@ st.markdown(
 
 * {{ border-radius: 8px !important; }}
 
-body, .stApp {{
+/* ============================================================ */
+/* 0. DARK MODE FIX: Force Light Theme & Text Visibility        */
+/* ============================================================ */
+/* Force white background globally */
+.stApp {{
     background: #FFFFFF !important;
     font-family: 'Inter', sans-serif !important;
 }}
+
+/* Force dark text color for all Streamlit labels/markdown/text */
+body, 
+p, 
+.stMarkdown,
+.stCaption,
+[data-testid^="stWidgetLabel"], /* Text for selectboxes, textinputs */
+.stText,
+.stHeader,
+.stSubheader,
+[data-testid="stSidebar"] * /* Sidebar elements if present */
+{{
+    color: {TEXT_DARK} !important; 
+}}
+
+/* Ensure all input/select box labels are visible against the main background */
+.stSelectbox label p,
+.stTextInput label p {{
+    color: {TEXT_DARK} !important;
+    font-weight: 600; /* Make labels stand out */
+}}
+
 
 /* ============================================================ */
 /* 1. BLUE BUTTONS (Search, Submit, Clear, Add to Cart)         */
@@ -186,14 +213,12 @@ button[kind="secondary"] {{
     border: none !important;
     font-weight: 700 !important;
     padding: 0.5rem 1rem !important;
-    /* Enhanced Shadow */
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
     transition: all 0.2s ease;
 }}
 button[kind="secondary"]:hover {{
     background-color: {DARK_BLUE} !important;
     color: white !important;
-    /* Lift Effect */
     transform: translateY(-2px); 
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }}
@@ -215,14 +240,14 @@ button[kind="primary"] {{
     font-weight: 700 !important;
     transition: all 0.2s ease !important;
     height: 100% !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Subtle Shadow */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }}
 button[kind="primary"]:hover {{
     background-color: {RED_DELETE} !important;
     color: white !important;
     border: 1px solid {RED_DELETE} !important;
     transform: scale(1.05);
-    box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3); /* Red shadow lift */
+    box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3);
 }}
 button[kind="primary"]:focus {{
     box-shadow: none !important;
@@ -230,29 +255,37 @@ button[kind="primary"]:focus {{
 }}
 
 /* ============================================================ */
-/* 3. INPUTS & DROPDOWNS (Blue Borders & Soft Shadows)          */
+/* 3. INPUTS & DROPDOWNS (Light Background, Blue Borders)       */
 /* ============================================================ */
 
-/* Text Input Border */
+/* Text Input Styling (Search Box) */
 .stTextInput input {{
+    background-color: white !important; /* Force light background */
     border: 2px solid {BLUE} !important;
-    color: {DARK_BLUE} !important;
+    color: {TEXT_DARK} !important; /* Ensure text is dark */
     padding: 8px 12px !important;
     font-weight: 500;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Soft Shadow */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }}
 .stTextInput input:focus {{
     border-color: {DARK_BLUE} !important;
     box-shadow: 0 0 0 1px {DARK_BLUE} !important;
 }}
 
-/* Selectbox (Dropdown) Border */
+/* Selectbox (Dropdown) Styling */
 .stSelectbox div[data-baseweb="select"] > div {{
+    background-color: white !important; /* Force light background */
     border: 2px solid {BLUE} !important;
-    color: {DARK_BLUE} !important;
+    color: {TEXT_DARK} !important; /* Ensure selected value is dark */
     font-weight: 500;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Soft Shadow */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }}
+/* Ensure all dropdown options (list items) are also dark text on light background */
+[data-baseweb="menu"] li {{
+    color: {TEXT_DARK} !important;
+    background-color: white !important;
+}}
+
 
 /* ============================================================ */
 /* 4. TABLE STYLING (SAP Record)                                */
@@ -261,51 +294,46 @@ button[kind="primary"]:focus {{
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
 }}
 [data-testid="stDataEditor"] thead th {{
-    /* Request: Bold text */
+    /* FINAL Request: Ensure dark and bold headers */
     font-weight: 800 !important; 
-    /* Request: Darker color and border */
-    background-color: #334155 !important; /* Dark Slate Gray */
+    background-color: {TEXT_DARK} !important; /* Darkest color for background */
     color: white !important;
-    border: 1px solid #1e293b !important; /* Even darker border */
+    border: 1px solid #334155 !important;
     font-size: 15px !important;
 }}
 /* Apply border to the right side of cells for a grid look */
 [data-testid="stDataEditor"] tbody td {{
     border-right: 1px solid #E5E7EB; 
+    color: {TEXT_DARK} !important; /* Ensure data text is dark */
 }}
 
 /* Hides the default colored bar at top */
 header {{visibility: hidden;}}
 
 /* ============================================================ */
-/* 5. CART ITEM STYLING - ULTRA TIGHT PADDING (User Request)    */
+/* 5. CART ITEM STYLING - ULTRA TIGHT PADDING (Final Compression)*/
 /* ============================================================ */
 
 /* Reduce vertical padding on all blocks within the st.columns for the cart */
-/* Targeted aggressively to reduce item height */
 div[data-testid="stColumn"] > div > div > div {{
-    padding-top: 1px !important; /* Even tighter */
-    padding-bottom: 1px !important; /* Even tighter */
+    padding-top: 1px !important; 
+    padding-bottom: 1px !important; 
     margin-top: 0px !important;
     margin-bottom: 0px !important;
 }}
 
 /* Tighter spacing for description/caption text */
 div[data-testid="stColumn"] .stMarkdown p, div[data-testid="stColumn"] .stCaption {{
-    margin: 0px 0px !important; /* Further reduced margin */
-    line-height: 1.1; /* Tighter line height */
-    font-size: 0.875rem; /* Slightly smaller font for compactness */
-}}
-div[data-testid="stColumn"] .stMarkdown h3, div[data-testid="stColumn"] .stMarkdown h2, div[data-testid="stColumn"] .stMarkdown h1 {{
     margin: 0px 0px !important;
-    padding: 0px 0px !important;
     line-height: 1.1;
+    font-size: 0.875rem;
 }}
+
 div[data-testid="stColumn"] .stText {{
     margin: 0px !important;
     padding: 0px !important;
     line-height: 1.1;
-    font-size: 0.875rem; /* Match other text */
+    font-size: 0.875rem;
 }}
 
 /* Tighter spacing and smaller height for Quantity Input */
@@ -313,29 +341,27 @@ div[data-testid="stColumn"] .stText {{
     margin: 0 !important;
     padding: 0 !important;
 }}
-.stNumberInput div[data-baseweb="input"] {{
-    margin: 0 !important;
-}}
 .stNumberInput div[data-baseweb="input"] input {{
-    height: 28px !important; /* Make the input field even smaller */
+    height: 28px !important;
     padding-top: 4px !important;
     padding-bottom: 4px !important;
-    font-size: 0.875rem; /* Match other text */
+    font-size: 0.875rem;
+    color: {TEXT_DARK} !important; /* Ensure input number is dark */
 }}
-/* Adjust buttons inside number input */
+/* Adjust buttons inside number input (plus/minus) */
 .stNumberInput button {{
     min-height: 28px !important;
     line-height: 1;
-    padding: 0 4px; /* Smaller padding */
+    padding: 0 4px; 
+    color: {TEXT_DARK} !important; /* Ensure buttons are dark text */
 }}
-
 
 /* Align delete button vertically */
 .stColumns > div:nth-child(4) button {{
-    margin-top: 4px; /* Adjust margin to center it */
-    height: 28px !important; /* Match height of input for alignment */
-    min-width: 28px !important; /* Make it square */
-    padding: 0; /* No internal padding */
+    margin-top: 4px; 
+    height: 28px !important;
+    min-width: 28px !important;
+    padding: 0;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -343,13 +369,7 @@ div[data-testid="stColumn"] .stText {{
 
 /* Override the default margin on the Quantity label column to center content */
 .stColumns > div:nth-child(1) .stMarkdown p {{
-    margin-top: 8px !important; /* Keep original for header alignment */
-}}
-
-/* Tighter horizontal spacing for cart header */
-.stColumns > div:nth-child(1).stMarkdown {{
-    width: 60px !important; /* Make Qty header narrower */
-    flex: none !important;
+    margin-top: 8px !important;
 }}
 
 </style>
