@@ -470,11 +470,19 @@ if "editor_key" not in st.session_state:
 
 # Apply clear logic
 if st.session_state["clear_trigger"]:
+    # The clear button was clicked, reset state and rerun
     st.session_state["query"] = ""
     st.session_state["table_df_base"] = None
     st.session_state["table_label"] = ""
     st.session_state["clear_trigger"] = False
     st.session_state["editor_key"] += 1
+    # We must explicitly set the query key for the text input to ensure it visually clears
+    st.session_state["query_input_key"] = "" 
+
+# Temporary key for the search input to reset its visual value on clear
+if "query_input_key" not in st.session_state:
+    st.session_state["query_input_key"] = st.session_state["query"]
+
 
 # ==========================================================
 # LOAD DATA
@@ -482,8 +490,6 @@ if st.session_state["clear_trigger"]:
 df = load_all()
 if df.empty:
     st.error("❌ Material data could not be loaded. Ensure master files are present.")
-    # st.stop() # Commented out st.stop() for robustness in deployed environment
-    # If the app fails to stop, it will proceed with an empty dataframe, which is fine for error testing.
 
 # ==========================================================
 # AESTHETIC HEADER
@@ -531,43 +537,52 @@ if (
     st.session_state["editor_key"] += 1
 
 # ==========================================================
-# SEARCH BAR (Fixed StreamlitAPIException by ensuring clear button is strictly outside the form)
+# SEARCH BAR (Definitive fix for StreamlitAPIException)
 # ==========================================================
-c_s, c_btn_submit, c_btn_clear = st.columns([5, 1, 1], vertical_alignment="bottom")
+# Use a single container for the form, and a separate column structure below it for the clear button
+# to avoid scope confusion.
 
-# 1. SEARCH INPUT & SUBMIT BUTTON (Inside Form)
+# Create the form container for the search input and submit button
 with st.form(key='search_form', clear_on_submit=False):
+    # Use columns inside the form for layout
+    c_s, c_btn_submit = st.columns([5, 1], vertical_alignment="bottom")
+
     with c_s:
+        # Use the session state key to control the displayed value for clearing
         q = st.text_input(
             "Search",
-            key="query",
+            value=st.session_state["query_input_key"], # Read from the temporary key
+            key="query_value_on_form_submit", # Unique key for the actual widget
             placeholder="Search by description or material code (e.g. bearing, 13000...)",
             label_visibility="visible" 
         )
     
-    # Place submit button inside its column within the form
     with c_btn_submit:
+        # st.form_submit_button MUST be inside the form
         submitted = st.form_submit_button("Submit", use_container_width=True, type="secondary")
-    
-    # Add a placeholder in the clear button column inside the form 
-    # to maintain vertical alignment for the clear button placed outside.
-    with c_btn_clear:
-        # A simple non-interactive element to take up the space of the clear button
-        st.markdown("<div style='height: 38px;'></div>", unsafe_allow_html=True) 
+        
+    # --- FORM SUBMISSION HANDLER ---
+    if submitted:
+        # Update the master query state from the input widget
+        st.session_state["query"] = q
+        st.session_state["query_input_key"] = q # Keep the visual value
+        st.session_state["trigger_search"] = True
 
-# 2. CLEAR BUTTON (Outside Form, placed in the same column as the placeholder above)
+
+# Place the Clear button completely outside the form block
+c_clear_placeholder, c_btn_clear = st.columns([5, 1], vertical_alignment="bottom")
+
 with c_btn_clear:
-    # Clear button remains a regular button and MUST be outside the form context
-    # This button will now sit visually where the placeholder was, 
-    # aligned with the search input and submit button.
-    # We use a unique key for separation from the form context.
-    clear_clicked = st.button("Clear", key="clear_btn_fixed", use_container_width=True)
+    # Use CSS to force the st.button ("Clear") to align vertically with the st.form_submit_button ("Submit")
+    # by adding a slight top margin, as it is outside the form context.
+    st.markdown("<style>#clear_btn_fixed_div {margin-top: 25px;}</style>", unsafe_allow_html=True)
+    with st.container():
+        clear_clicked = st.button("Clear", key="clear_btn_fixed", use_container_width=True)
 
 # Handle the clear button click
 if clear_clicked:
     st.session_state["clear_trigger"] = True
-    # The clear logic is applied at the beginning of the script 
-    # after session state initialization, so we just need to rerun.
+    # st.rerun will apply the clear logic defined at the start of the script
     st.rerun()
 
 # ==========================================================
@@ -576,6 +591,7 @@ if clear_clicked:
 def on_recent_click(search_text):
     # Set the query text
     st.session_state["query"] = search_text
+    st.session_state["query_input_key"] = search_text
     # Flag to trigger the search logic
     st.session_state["trigger_search"] = True
 
@@ -591,8 +607,8 @@ if st.session_state["recent_searches"]:
 # ==========================================================
 # SEARCH LOGIC
 # ==========================================================
-# The search is triggered by form submission (Enter or Submit button) OR a Recent Search click
-should_search = submitted or st.session_state.get("trigger_search", False)
+# The search is triggered by form submission OR a Recent Search click
+should_search = st.session_state.get("trigger_search", False)
 
 if should_search:
     # Immediately reset the flag and increment key to force table reset
@@ -639,8 +655,6 @@ if should_search:
                 st.dataframe(clean_display(filtered_global), use_container_width=True)
     
     # Rerun to apply search results immediately if search was triggered by recent button or submit
-    # Note: `submitted` is True only for one run *inside* the form block.
-    # The flag `should_search` handles the logic across runs.
     st.rerun()
 
 # ==========================================================
@@ -761,9 +775,9 @@ else:
                 # The state value is updated automatically by st.number_input
                 new_val = st.session_state[f"qty_{material_code}"]
                 st.session_state["cart"][material_code]["Quantity"] = new_val
-                # Rerunning is necessary to update the cart display fully
-                # st.rerun() # Removed redundant rerun, should only happen if required by other changes
-
+                # We don't need a rerun here because the next loop iteration will redraw with the new state
+                # and the st.number_input handles its own state for one cycle.
+                
             # Only call on_change if the value is actually different to minimize reruns
             current_value = int(item["Quantity"])
 
@@ -777,11 +791,6 @@ else:
                 on_change=update_qty, # Call update function
                 args=(code,)
             )
-
-            # Check if the change requires an explicit rerun (only if the number input changes)
-            if new_qty != current_value:
-                 st.session_state["cart"][code]["Quantity"] = new_qty
-                 st.rerun() # Must rerun to ensure correct state propagation if value was manually changed
                 
         # COLUMN 2: DESCRIPTION & CODE
         with c2:
