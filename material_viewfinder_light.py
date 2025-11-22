@@ -349,14 +349,25 @@ div[data-testid="stColumn"] .stText {{
     padding-top: 4px !important;
     padding-bottom: 4px !important;
     font-size: 0.875rem;
-    color: {DARK_BLUE} !important; /* FIX: Set to DARK_BLUE for visibility in both light (on white background) and dark modes (on dark background) */
+    color: {DARK_BLUE} !important; 
+    background-color: transparent !important; /* FIX: Make input background transparent */
+    border: 1px solid {DARK_BLUE} !important; /* Subtle border for definition */
+    box-shadow: none !important;
 }}
 /* Adjust buttons inside number input (plus/minus) */
 .stNumberInput button {{
     min-height: 28px !important;
     line-height: 1;
     padding: 0 4px; 
-    color: {DARK_BLUE} !important; /* FIX: Also ensure the plus/minus buttons are DARK_BLUE */
+    color: {DARK_BLUE} !important; 
+    background-color: transparent !important; /* FIX: Make button backgrounds transparent */
+    border: none !important; /* Remove individual button borders */
+}}
+/* Target the overall container for the number input buttons to remove its background if any */
+.stNumberInput div[data-baseweb="input"] {{
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
 }}
 
 /* Align delete button vertically */
