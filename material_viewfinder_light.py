@@ -700,7 +700,7 @@ else:
                 # 1. Save to Undo
                 st.session_state["undo_item"] = st.session_state["cart"][code]
                 # 2. Delete immediately
-                del st.session_state["cart"][code]
+                del st.session_session["cart"][code]
                 st.rerun()
         
         # NOTE: The custom CSS handles the separator line now, making the cart cleaner
@@ -742,7 +742,7 @@ st.text_area("Email Preview", body, height=200)
 if st.button("Send Email"):
     if not to_email.strip():
         st.warning("Please enter receiver email.")
-    else:A
+    else:
         subject_encoded = urllib.parse.quote(subject)
         body_encoded = urllib.parse.quote(body)
         to_encoded = urllib.parse.quote(to_email)
