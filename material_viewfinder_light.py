@@ -82,7 +82,8 @@ def load_all():
                     rows.extend(T.to_dict(orient="records"))
         except Exception as e:
             # Handle potential errors during file reading/parsing
-            st.error(f"Error processing file {fname}, sheet {sheet}: {e}")
+            # Using st.warning instead of st.error for less disruptive display of non-critical data loading failure
+            st.warning(f"Error processing file {fname}, sheet {sheet}: {e}")
             continue
 
     if not rows:
@@ -481,7 +482,8 @@ if st.session_state["clear_trigger"]:
 df = load_all()
 if df.empty:
     st.error("❌ Material data could not be loaded. Ensure master files are present.")
-    st.stop()
+    # st.stop() # Commented out st.stop() for robustness in deployed environment
+    # If the app fails to stop, it will proceed with an empty dataframe, which is fine for error testing.
 
 # ==========================================================
 # AESTHETIC HEADER
@@ -529,12 +531,16 @@ if (
     st.session_state["editor_key"] += 1
 
 # ==========================================================
-# SEARCH BAR (Modified to use st.form for Enter key support)
+# SEARCH BAR (Modified to fix StreamlitAPIException)
 # ==========================================================
-# Use st.form to capture the Enter key press from the text input
-with st.form(key='search_form'):
-    c_s, c_btn, c_clr = st.columns([5, 1, 1], vertical_alignment="bottom")
+# We use columns for layout, but ensure the independent st.button("Clear") 
+# is placed outside the st.form() context.
 
+c_s, c_btn, c_clr = st.columns([5, 1, 1], vertical_alignment="bottom")
+
+# 1. SEARCH INPUT & SUBMIT BUTTON (Inside Form)
+with st.form(key='search_form', clear_on_submit=False):
+    # Place text input and submit button inside the form columns
     with c_s:
         q = st.text_input(
             "Search",
@@ -542,21 +548,31 @@ with st.form(key='search_form'):
             placeholder="Search by description or material code (e.g. bearing, 13000...)",
             label_visibility="visible" 
         )
-
+    
+    # Use c_btn for the submit button
     with c_btn:
         # st.form_submit_button handles Enter key and form submission
         submitted = st.form_submit_button("Submit", use_container_width=True, type="secondary")
-
+    
+    # Need a placeholder column to maintain alignment for the Clear button, 
+    # but the Clear button itself must be placed outside the form.
     with c_clr:
-        # Clear button remains a regular button (its action is handled below)
-        clear_clicked = st.button("Clear", key="clear_btn", use_container_width=True)
+        # Placeholder for visual alignment when form is active
+        # The form submit button usually takes up the full space in its column
+        st.markdown("<div style='height: 38px;'></div>", unsafe_allow_html=True) 
+        # This is a hack to vertically align the non-form clear button below
 
-# Handle the clear button click (must be outside the `with st.form` block if it causes rerun)
+# 2. CLEAR BUTTON (Outside Form)
+with c_clr:
+    # Clear button remains a regular button and MUST be outside the form context
+    # Use a different key since it's now outside the form definition block
+    clear_clicked = st.button("Clear", key="clear_btn_fixed", use_container_width=True)
+
+# Handle the clear button click
 if clear_clicked:
     st.session_state["clear_trigger"] = True
-    st.session_state["table_df_base"] = None
-    st.session_state["table_label"] = ""
-    st.session_state["editor_key"] += 1
+    # The clear logic is applied at the beginning of the script 
+    # after session state initialization, so we just need to rerun.
     st.rerun()
 
 # ==========================================================
@@ -574,8 +590,8 @@ if st.session_state["recent_searches"]:
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            # Removed use_container_width=True to ensure compact button size
-            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,))
+            # Added use_container_width=True back in for a compact, full-width button
+            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,), use_container_width=True)
 
 # ==========================================================
 # SEARCH LOGIC
@@ -627,10 +643,10 @@ if should_search:
                 # Use a standard dataframe for the global results that won't interfere with the main data_editor
                 st.dataframe(clean_display(filtered_global), use_container_width=True)
     
-    # Rerun to apply search results immediately if search was triggered by recent button
-    if submitted or st.session_state["query"] == q_stripped and st.session_state["trigger_search"] == False:
-        # Rerun is necessary to force the table update outside the form submission state
-        st.rerun()
+    # Rerun to apply search results immediately if search was triggered by recent button or submit
+    # Note: `submitted` is True only for one run *inside* the form block.
+    # The flag `should_search` handles the logic across runs.
+    st.rerun()
 
 # ==========================================================
 # SHOW SAP TABLE (AUTO RESET)
@@ -751,11 +767,14 @@ else:
                 new_val = st.session_state[f"qty_{material_code}"]
                 st.session_state["cart"][material_code]["Quantity"] = new_val
                 # Rerunning is necessary to update the cart display fully
-                st.rerun()
+                # st.rerun() # Removed redundant rerun, should only happen if required by other changes
+
+            # Only call on_change if the value is actually different to minimize reruns
+            current_value = int(item["Quantity"])
 
             new_qty = st.number_input(
                 "Qty", 
-                value=int(item["Quantity"]), 
+                value=current_value, 
                 min_value=1, 
                 step=1, 
                 key=f"qty_{code}",
@@ -763,6 +782,11 @@ else:
                 on_change=update_qty, # Call update function
                 args=(code,)
             )
+
+            # Check if the change requires an explicit rerun (only if the number input changes)
+            if new_qty != current_value:
+                 st.session_state["cart"][code]["Quantity"] = new_qty
+                 st.rerun() # Must rerun to ensure correct state propagation if value was manually changed
                 
         # COLUMN 2: DESCRIPTION & CODE
         with c2:
