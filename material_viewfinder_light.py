@@ -185,7 +185,7 @@ st.markdown(
 * {{ border-radius: 8px !important; }}
 
 /* ============================================================ */
-/* 0. DARK MODE FIX: Force Light Theme & Text Visibility        */
+/* 0. DARK MODE FIX: Force Light Theme & Text Visibility        */
 /* ============================================================ */
 /* Force white background globally */
 .stApp {{
@@ -250,7 +250,7 @@ button[kind="secondary"]:focus, button[kind="secondary"]:active {{
 }}
 
 /* ============================================================ */
-/* 2. DELETE BUTTON (Clean Red Icon & Clear All Cart Button)    */
+/* 2. DELETE BUTTON (Clean Red Icon & Clear All Cart Button)    */
 /* ============================================================ */
 button[kind="primary"] {{
     background-color: transparent !important;
@@ -290,7 +290,7 @@ button[kind="primary"].stButton:not(.stColumns > div:nth-child(4) button):hover 
 
 
 /* ============================================================ */
-/* 3. INPUTS & DROPDOWNS (Light Background, Blue Borders)       */
+/* 3. INPUTS & DROPDOWNS (Light Background, Blue Borders)       */
 /* ============================================================ */
 
 /* Text Input Styling (Search Box) */
@@ -323,7 +323,7 @@ button[kind="primary"].stButton:not(.stColumns > div:nth-child(4) button):hover 
 
 
 /* ============================================================ */
-/* 4. TABLE STYLING (SAP Record)                                */
+/* 4. TABLE STYLING (SAP Record)                                */
 /* ============================================================ */
 [data-testid="stDataEditor"] {{
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
@@ -563,11 +563,6 @@ if st.session_state["recent_searches"]:
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            # FIX applied from material_viewfinder_light.py: Removed use_container_width=True 
-            # to prevent the button from stretching too much. (Reverted to original)
-            # Reverting: Based on the provided code, the original decision to use 
-            # `use_container_width=True` on recent search buttons was removed. I will ensure 
-            # the current logic respects the single line change intention for better layout.
             # Rerunning the file as it was presented in the prompt's context:
             st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,))
 
@@ -632,7 +627,25 @@ base = st.session_state["table_df_base"]
 label = st.session_state["table_label"]
 
 if base is not None and not base.empty:
-    st.subheader(label)
+    # --- MODIFIED SECTION: Custom Markdown for Highlighted Label ---
+    st.markdown(
+        f"""
+        <div style="
+            background-color: {DARK_BLUE}; 
+            color: white; 
+            padding: 10px 15px; 
+            margin-top: 20px;
+            margin-bottom: 15px; 
+            font-size: 1.25rem; 
+            font-weight: 700;
+            border-radius: 8px !important;
+        ">
+            {label}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    # --- END MODIFIED SECTION ---
 
     display_df = base.copy().reset_index(drop=True)
     # Ensure mandatory columns for data editor selection are present
