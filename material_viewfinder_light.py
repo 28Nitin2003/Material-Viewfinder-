@@ -1,5 +1,5 @@
 # ==========================================================
-# MATERIAL VIEWFINDER — FINAL (INSTANT DELETE + BLUE BORDERS)
+# MATERIAL VIEWFINDER — FINAL AESTHETIC BUILD (ULTRA TIGHT CART PADDING & BOLD/DARK HEADERS)
 # ==========================================================
 
 import os
@@ -21,10 +21,10 @@ FILES = {
 KEY_MAT = "Material"
 KEY_DESC = "Material Proposed Description"
 
-# COLORS
-BLUE = "#00B4D8"
-DARK_BLUE = "#0077B6"
-DARK_GREEN = "#064E3B"
+# --- ENHANCED COLORS ---
+BLUE = "#1F7A8C"        # Richer Teal/Corporate Blue
+DARK_BLUE = "#003566"   # Deep Blue for Title
+DARK_GREEN = "#006D5B"  # Professional Dark Green for Headers
 RED_DELETE = "#EF4444"
 
 # ==========================================================
@@ -162,41 +162,51 @@ def hybrid_multi_search(df_sub: pd.DataFrame, q: str) -> pd.DataFrame:
 
 
 # ==========================================================
-# UI CSS
+# UI CSS (AESTHETIC STYLING)
 # ==========================================================
 st.set_page_config(page_title="Material Viewfinder", layout="wide")
 st.markdown(
     f"""
 <style>
-* {{ border-radius: 6px !important; }}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+* {{ border-radius: 8px !important; }}
 
 body, .stApp {{
-    background:white !important;
-    font-family:'Inter', sans-serif !important;
+    background: #FFFFFF !important;
+    font-family: 'Inter', sans-serif !important;
 }}
 
 /* ============================================================ */
-/* 1. GENERAL BUTTONS (Search, Submit, Clear, Add to Cart)      */
+/* 1. BLUE BUTTONS (Search, Submit, Clear, Add to Cart)         */
 /* ============================================================ */
 button[kind="secondary"] {{
     background-color: {BLUE} !important;
     color: white !important;
     border: none !important;
     font-weight: 700 !important;
+    padding: 0.5rem 1rem !important;
+    /* Enhanced Shadow */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+    transition: all 0.2s ease;
 }}
 button[kind="secondary"]:hover {{
     background-color: {DARK_BLUE} !important;
     color: white !important;
+    /* Lift Effect */
+    transform: translateY(-2px); 
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }}
 button[kind="secondary"]:focus, button[kind="secondary"]:active {{
     background-color: {DARK_BLUE} !important;
     color: white !important;
     outline: none !important;
     box-shadow: none !important;
+    transform: translateY(0);
 }}
 
 /* ============================================================ */
-/* 2. DELETE BUTTON (Red Icon, Transparent BG)                  */
+/* 2. DELETE BUTTON (Clean Red Icon)                            */
 /* ============================================================ */
 button[kind="primary"] {{
     background-color: transparent !important;
@@ -204,11 +214,15 @@ button[kind="primary"] {{
     color: {RED_DELETE} !important;
     font-weight: 700 !important;
     transition: all 0.2s ease !important;
+    height: 100% !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Subtle Shadow */
 }}
 button[kind="primary"]:hover {{
     background-color: {RED_DELETE} !important;
     color: white !important;
     border: 1px solid {RED_DELETE} !important;
+    transform: scale(1.05);
+    box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3); /* Red shadow lift */
 }}
 button[kind="primary"]:focus {{
     box-shadow: none !important;
@@ -216,29 +230,128 @@ button[kind="primary"]:focus {{
 }}
 
 /* ============================================================ */
-/* 3. INPUT FIELDS (Text Input + SELECT BOX BORDER)             */
+/* 3. INPUTS & DROPDOWNS (Blue Borders & Soft Shadows)          */
 /* ============================================================ */
 
 /* Text Input Border */
 .stTextInput input {{
     border: 2px solid {BLUE} !important;
     color: {DARK_BLUE} !important;
-    padding: 6px !important;
+    padding: 8px 12px !important;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Soft Shadow */
+}}
+.stTextInput input:focus {{
+    border-color: {DARK_BLUE} !important;
+    box-shadow: 0 0 0 1px {DARK_BLUE} !important;
 }}
 
-/* DROP DOWN / SELECTBOX BORDER (New Request) */
+/* Selectbox (Dropdown) Border */
 .stSelectbox div[data-baseweb="select"] > div {{
     border: 2px solid {BLUE} !important;
     color: {DARK_BLUE} !important;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Soft Shadow */
 }}
 
-/* TABLE HEADERS */
+/* ============================================================ */
+/* 4. TABLE STYLING (SAP Record)                                */
+/* ============================================================ */
+[data-testid="stDataEditor"] {{
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+}}
 [data-testid="stDataEditor"] thead th {{
-    background-color: {DARK_GREEN} !important;
+    /* Request: Bold text */
+    font-weight: 800 !important; 
+    /* Request: Darker color and border */
+    background-color: #334155 !important; /* Dark Slate Gray */
     color: white !important;
+    border: 1px solid #1e293b !important; /* Even darker border */
+    font-size: 15px !important;
+}}
+/* Apply border to the right side of cells for a grid look */
+[data-testid="stDataEditor"] tbody td {{
+    border-right: 1px solid #E5E7EB; 
 }}
 
-h1,h2,h3 {{ color: {DARK_BLUE} !important; }}
+/* Hides the default colored bar at top */
+header {{visibility: hidden;}}
+
+/* ============================================================ */
+/* 5. CART ITEM STYLING - ULTRA TIGHT PADDING (User Request)    */
+/* ============================================================ */
+
+/* Reduce vertical padding on all blocks within the st.columns for the cart */
+/* Targeted aggressively to reduce item height */
+div[data-testid="stColumn"] > div > div > div {{
+    padding-top: 1px !important; /* Even tighter */
+    padding-bottom: 1px !important; /* Even tighter */
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
+}}
+
+/* Tighter spacing for description/caption text */
+div[data-testid="stColumn"] .stMarkdown p, div[data-testid="stColumn"] .stCaption {{
+    margin: 0px 0px !important; /* Further reduced margin */
+    line-height: 1.1; /* Tighter line height */
+    font-size: 0.875rem; /* Slightly smaller font for compactness */
+}}
+div[data-testid="stColumn"] .stMarkdown h3, div[data-testid="stColumn"] .stMarkdown h2, div[data-testid="stColumn"] .stMarkdown h1 {{
+    margin: 0px 0px !important;
+    padding: 0px 0px !important;
+    line-height: 1.1;
+}}
+div[data-testid="stColumn"] .stText {{
+    margin: 0px !important;
+    padding: 0px !important;
+    line-height: 1.1;
+    font-size: 0.875rem; /* Match other text */
+}}
+
+/* Tighter spacing and smaller height for Quantity Input */
+.stNumberInput {{
+    margin: 0 !important;
+    padding: 0 !important;
+}}
+.stNumberInput div[data-baseweb="input"] {{
+    margin: 0 !important;
+}}
+.stNumberInput div[data-baseweb="input"] input {{
+    height: 28px !important; /* Make the input field even smaller */
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    font-size: 0.875rem; /* Match other text */
+}}
+/* Adjust buttons inside number input */
+.stNumberInput button {{
+    min-height: 28px !important;
+    line-height: 1;
+    padding: 0 4px; /* Smaller padding */
+}}
+
+
+/* Align delete button vertically */
+.stColumns > div:nth-child(4) button {{
+    margin-top: 4px; /* Adjust margin to center it */
+    height: 28px !important; /* Match height of input for alignment */
+    min-width: 28px !important; /* Make it square */
+    padding: 0; /* No internal padding */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}}
+
+/* Override the default margin on the Quantity label column to center content */
+.stColumns > div:nth-child(1) .stMarkdown p {{
+    margin-top: 8px !important; /* Keep original for header alignment */
+}}
+
+/* Tighter horizontal spacing for cart header */
+.stColumns > div:nth-child(1).stMarkdown {{
+    width: 60px !important; /* Make Qty header narrower */
+    flex: none !important;
+}}
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -295,10 +408,25 @@ if df.empty:
     st.stop()
 
 # ==========================================================
-# HEADER & FILTERS
+# AESTHETIC HEADER
 # ==========================================================
-st.markdown("<h1>🔍 Material Viewfinder</h1>", unsafe_allow_html=True)
+st.markdown(
+    f"""
+    <div style="text-align: center; margin-top: -30px; margin-bottom: 40px;">
+        <h1 style="color: {DARK_BLUE}; font-size: 3.5rem; font-weight: 800; margin-bottom: 0px; letter-spacing: -1px;">
+            Material<span style="color: {BLUE};">Viewfinder</span>
+        </h1>
+        <p style="color: #64748B; font-size: 1.1rem; font-weight: 500; margin-top: 5px;">
+            🔍 Smart Inventory & Procurement Assistant
+        </p>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
 
+# ==========================================================
+# FILTERS
+# ==========================================================
 c1, c2, c3 = st.columns(3)
 plant = c1.selectbox("Plant", ["SHJM", "MIJM", "SGJM", "SSKT"])
 department = c2.selectbox("Department", sorted(df["Department"].unique()))
@@ -327,16 +455,17 @@ c_s, c_btn, c_clr = st.columns([5, 1, 1], vertical_alignment="bottom")
 
 with c_s:
     q = st.text_input(
-        "Search by description or material code",
+        "Search",
         key="query",
-        placeholder="e.g., disc, stud, bearing, 13000..."
+        placeholder="Search by description or material code (e.g. bearing, 13000...)",
+        label_visibility="visible" 
     )
 
 with c_btn:
-    submit = st.button("Submit")
+    submit = st.button("Submit", use_container_width=True)
 
 with c_clr:
-    clear = st.button("Clear", key="clear_btn")
+    clear = st.button("Clear", key="clear_btn", use_container_width=True)
 
 if clear:
     st.session_state["clear_trigger"] = True
@@ -353,7 +482,7 @@ def on_recent_click(search_text):
     st.session_state["trigger_search"] = True
 
 if st.session_state["recent_searches"]:
-    st.markdown("### 🕘 Recent Searches")
+    st.markdown("### 🕘 Recent")
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
@@ -429,7 +558,7 @@ if base is not None and not base.empty:
         },
     )
 
-    if st.button("Add Selected to Cart"):
+    if st.button("Add Selected to Cart", use_container_width=True):
         selected_rows = edited[edited["Select"] == True]
 
         if selected_rows.empty:
@@ -476,7 +605,7 @@ if st.session_state["undo_item"]:
     c_undo, _ = st.columns([2, 5])
     with c_undo:
         # Standard Blue Button
-        if st.button("↩ Undo Delete"):
+        if st.button("↩ Undo Delete", use_container_width=True):
             restored = st.session_state["undo_item"]
             st.session_state["cart"][restored["Material"]] = restored
             st.session_state["undo_item"] = None
@@ -488,7 +617,8 @@ if not st.session_state["cart"]:
     st.info("Your cart is empty.")
 else:
     # 2. HEADER ROW
-    h1, h2, h3, h4 = st.columns([1, 4, 1.5, 0.5])
+    # Adjusted column widths for tighter Qty
+    h1, h2, h3, h4 = st.columns([0.6, 4, 1.5, 0.5]) 
     h1.markdown("**Qty**")
     h2.markdown("**Material / Description**")
     h3.markdown("**Machine**")
@@ -502,7 +632,8 @@ else:
     # List conversion for safe iteration
     for code, item in list(current_cart.items()):
         
-        c1, c2, c3, c4 = st.columns([1, 4, 1.5, 0.5])
+        # Adjusted column widths for tighter Qty
+        c1, c2, c3, c4 = st.columns([0.6, 4, 1.5, 0.5])
         
         # COLUMN 1: EDITABLE QUANTITY
         with c1:
@@ -536,7 +667,8 @@ else:
                 del st.session_state["cart"][code]
                 st.rerun()
         
-        st.markdown("<div style='border-bottom:1px solid #E5E7EB; margin-bottom:8px;'></div>", unsafe_allow_html=True)
+        # NOTE: The custom CSS handles the separator line now, making the cart cleaner
+        st.markdown("<hr>", unsafe_allow_html=True) 
 
     # CLEAR ALL BUTTON
     if st.button("Clear Entire Cart"):
