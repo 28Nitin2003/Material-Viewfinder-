@@ -1,5 +1,5 @@
 # ==========================================================
-# MATERIAL VIEWFINDER — FINAL AESTHETIC BUILD (DARK MODE FIX + VISIBILITY)
+# MATERIAL VIEWFINDER — FINAL AESTHETIC BUILD (BUTTON FIX + VISIBILITY)
 # ==========================================================
 
 import os
@@ -182,18 +182,22 @@ st.markdown(
     font-family: 'Inter', sans-serif !important;
 }}
 
-/* Force dark text color for all Streamlit labels/markdown/text */
-body, 
+/* Force dark text color for specific elements only */
 p, 
 .stMarkdown,
 .stCaption,
-[data-testid^="stWidgetLabel"], /* Text for selectboxes, textinputs */
+[data-testid^="stWidgetLabel"] p, /* Labels for selectboxes, textinputs */
 .stText,
 .stHeader,
 .stSubheader,
 [data-testid="stSidebar"] * /* Sidebar elements if present */
 {{
     color: {TEXT_DARK} !important; 
+}}
+
+/* Ensure button text remains white */
+button p {{
+    color: white !important;
 }}
 
 /* Ensure all input/select box labels are visible against the main background */
@@ -205,11 +209,11 @@ p,
 
 
 /* ============================================================ */
-/* 1. BLUE BUTTONS (Search, Submit, Clear, Add to Cart)         */
+/* 1. BLUE BUTTONS (Search, Submit, Clear, Add to Cart, Recent) */
 /* ============================================================ */
 button[kind="secondary"] {{
     background-color: {BLUE} !important;
-    color: white !important;
+    color: white !important; /* Ensure white text */
     border: none !important;
     font-weight: 700 !important;
     padding: 0.5rem 1rem !important;
@@ -294,7 +298,6 @@ button[kind="primary"]:focus {{
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
 }}
 [data-testid="stDataEditor"] thead th {{
-    /* FINAL Request: Ensure dark and bold headers */
     font-weight: 800 !important; 
     background-color: {TEXT_DARK} !important; /* Darkest color for background */
     color: white !important;
@@ -506,7 +509,8 @@ if st.session_state["recent_searches"]:
     cols = st.columns(len(st.session_state["recent_searches"]))
     for i, item in enumerate(st.session_state["recent_searches"]):
         with cols[i]:
-            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,))
+            # These buttons are secondary, so they should now pick up the blue styling
+            st.button(item, key=f"recent_{i}", on_click=on_recent_click, args=(item,), use_container_width=True)
 
 # ==========================================================
 # SEARCH LOGIC
