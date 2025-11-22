@@ -615,10 +615,13 @@ if should_search:
                 # Use a standard dataframe for the global results that won't interfere with the main data_editor
                 st.dataframe(clean_display(filtered_global), use_container_width=True)
     
-    # Rerun to apply search results immediately if search was triggered by recent button
-    if st.session_state["query"] == q_stripped and st.session_state["trigger_search"] == False:
-        # Only rerun if the query was set by a button click and not manually typed (which reruns on submit)
-        st.rerun()
+    # We do NOT need st.rerun() here if triggered by recent search button, 
+    # as setting the state value triggers a rerun automatically.
+    # The submission logic relies on the submit button click or the state flag.
+    # The button click already triggers a rerun. The state flag is set in on_recent_click, 
+    # which is already inside a callback, and the callback causes a rerun.
+    pass
+
 
 # ==========================================================
 # SHOW SAP TABLE (AUTO RESET)
@@ -708,7 +711,7 @@ if base is not None and not base.empty:
                 st.success(f"✔ Added {count} item(s) to cart.")
                 # Increment editor key to clear selections in the data editor
                 st.session_state["editor_key"] += 1
-                st.rerun()
+                st.rerun() # This st.rerun() is fine because it's *not* inside a callback (it's in the main script flow)
 
 # ==========================================================
 # CART LOGIC (INSTANT DELETE + UNDO)
@@ -724,7 +727,7 @@ if st.session_state["undo_item"]:
             restored = st.session_state["undo_item"]
             st.session_state["cart"][restored["Material"]] = restored
             st.session_state["undo_item"] = None
-            st.rerun()
+            st.rerun() # This st.rerun() is fine because it's *not* inside a callback (it's in the main script flow)
 
 st.subheader("🛒 Cart")
 
@@ -757,8 +760,8 @@ else:
                 # The state value is updated automatically by st.number_input
                 new_val = st.session_state[f"qty_{material_code}"]
                 st.session_state["cart"][material_code]["Quantity"] = new_val
-                # Rerunning is necessary to update the cart display fully
-                st.rerun()
+                # We remove the st.rerun() here to fix the warning.
+                # The app will rerun automatically after this callback finishes.
 
             new_qty = st.number_input(
                 "Qty", 
@@ -788,7 +791,7 @@ else:
                 st.session_state["undo_item"] = st.session_state["cart"][code]
                 # 2. Delete immediately
                 del st.session_state["cart"][code]
-                st.rerun()
+                st.rerun() # This st.rerun() is fine because it's *not* inside a callback (it's in the main script flow)
         
         # Separator line for cart item
         st.markdown("<hr>", unsafe_allow_html=True) 
@@ -798,7 +801,7 @@ else:
     if st.button("Clear Entire Cart", type="primary", key="clear_all_cart_btn"):
         st.session_state["cart"] = {}
         st.session_state["undo_item"] = None
-        st.rerun()
+        st.rerun() # This st.rerun() is fine because it's *not* inside a callback (it's in the main script flow)
 
 # ==========================================================
 # EMAIL SECTION
