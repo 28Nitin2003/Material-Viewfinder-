@@ -11,7 +11,7 @@ FILES = {
     "Drawing": "Drawing Material Master.xlsx",
     "Carding": "Carding Material Master.xlsx",
     "Spinning": "Spinning Material Master.xlsx",
-    "Spool Winding": "Spool Winding Material Master.xlsx",
+    "Winding": "Spool Winding Material Master.xlsx",
 }
 
 KEY_MAT = "Material"
@@ -79,7 +79,7 @@ def load_all():
                 for tbl in extract_tables(df):
                     T = tbl.copy()
                     T["Department"] = dept
-                    machine = "Winding" if sheet.lower() == "sheet1" else sheet
+                    machine = " Spool Winding" if sheet.lower() == "sheet1" else sheet
                     T["Machine Type"] = machine
                     rows.extend(T.to_dict(orient="records"))
         except Exception as e:
